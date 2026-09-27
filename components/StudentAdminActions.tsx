@@ -4,16 +4,18 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-// Admin-only buttons on the student detail page. There is intentionally NO delete:
-// removing a student would orphan their payment history.
+// Admin-only buttons on the student detail page. Delete exists only for students with NO payments
+// (e.g. added by mistake); anyone with payment history must be marked Left so records survive.
 export default function StudentAdminActions({
   studentId,
   studentName,
   status,
+  paymentCount,
 }: {
   studentId: string;
   studentName: string;
   status: "ACTIVE" | "LEFT";
+  paymentCount: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,23 @@ export default function StudentAdminActions({
     router.refresh();
   }
 
+  async function remove() {
+    if (!window.confirm(`Delete ${studentName} permanently?
+
+This can't be undone. (Only possible because they have no payments.)`)) return;
+    setBusy(true);
+    const res = await fetch(`/api/admin/students/${studentId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      window.alert(data.error ?? "Could not delete the student.");
+      router.refresh();
+      return;
+    }
+    router.push(`/admin/students?deleted=${encodeURIComponent(studentName)}`);
+    router.refresh();
+  }
+
   const btn = "inline-flex h-9 items-center rounded-md border px-3 text-sm disabled:opacity-60";
 
   return (
@@ -58,6 +77,11 @@ export default function StudentAdminActions({
       ) : (
         <button onClick={() => setStatus("ACTIVE")} disabled={busy} className={`${btn} border-border hover:bg-black/5 dark:hover:bg-white/10`}>
           {busy ? "Saving…" : "Mark as Active"}
+        </button>
+      )}
+      {paymentCount === 0 && (
+        <button onClick={remove} disabled={busy} className={`${btn} border-warn/40 text-warn hover:bg-warn-soft`}>
+          Delete
         </button>
       )}
     </div>

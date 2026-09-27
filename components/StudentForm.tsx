@@ -15,7 +15,8 @@ type Values = {
 };
 type FieldErrors = Partial<Record<keyof Values, string>>;
 
-// Used by Edit Student now; reusable for Add Student (POST) later.
+// Shared by Add Student (POST, both roles) and Edit Student (PATCH, Admin).
+// `redirectTo` may contain ":id", replaced with the saved student's id (e.g. "/manager/students/:id?added=1").
 export default function StudentForm({
   initial,
   action,
@@ -52,7 +53,7 @@ export default function StudentForm({
         setSaving(false);
         return;
       }
-      router.push(redirectTo);
+      router.push(redirectTo.replace(":id", data.student?.id ?? ""));
       router.refresh();
     } catch {
       setError("Could not reach the server. Check your connection.");

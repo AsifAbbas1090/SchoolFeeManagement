@@ -71,7 +71,7 @@ export default async function ManagerDashboard() {
             icon="send"
             hint={`${formatRs(t.submittedConfirmed)} confirmed · ${formatRs(t.submittedPending)} pending`}
           />
-          <StatCard label="Cash in hand" value={formatRs(t.inHand)} icon="wallet" tone="accent" hint="Collected so far − submitted" />
+          <StatCard label="Cash in hand" value={formatRs(t.inHand)} icon="wallet" tone="accent" hint={t.expensesPending + t.expensesApproved > 0 ? "Collected − submitted − expenses" : "Collected so far − submitted"} />
         </div>
       </div>
     </>

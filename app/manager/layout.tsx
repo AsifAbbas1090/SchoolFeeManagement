@@ -7,6 +7,7 @@ const links: NavLink[] = [
   { href: "/manager/payments/new", label: "Record Payment", icon: "coins" },
   { href: "/manager/students", label: "Students", icon: "students" },
   { href: "/manager/submit", label: "Submit to Admin", icon: "send" },
+  { href: "/manager/expenses", label: "Expenses", icon: "receipt" },
 ];
 
 export default async function ManagerLayout({ children }: { children: React.ReactNode }) {

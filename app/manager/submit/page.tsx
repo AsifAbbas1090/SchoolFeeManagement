@@ -25,9 +25,22 @@ export default async function SubmitPage() {
       <PageHeader title="Submit to Admin" subtitle="Record cash you're handing over. Admin confirms it once counted." />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Cash in Hand" value={formatRs(t.inHand)} hint="Collected − submitted" />
+        <StatCard label="Cash in Hand" value={formatRs(t.inHand)} hint="Collected − submitted − expenses" />
         <StatCard label="Total Submitted" value={formatRs(t.submitted)} hint={`${formatRs(t.submittedConfirmed)} confirmed`} />
         <StatCard label="Awaiting Confirmation" value={formatRs(t.submittedPending)} />
+      </div>
+
+      {/* Where "cash in hand" comes from — earlier days' leftover is always included. */}
+      <div className="mb-4 rounded-xl border border-border bg-surface p-4 text-sm shadow-sm shadow-black/[0.03]">
+        <p className="mb-2 font-medium">How your cash in hand adds up</p>
+        <dl className="grid max-w-md grid-cols-[1fr_auto] gap-x-6 gap-y-1 tabular-nums">
+          <dt className="text-muted">Carried over from earlier days</dt><dd className="text-right">{formatRs(t.carriedOver)}</dd>
+          <dt className="text-muted">+ Collected today</dt><dd className="text-right">{formatRs(t.today)}</dd>
+          <dt className="text-muted">− Submitted today</dt><dd className="text-right">{formatRs(t.submittedToday)}</dd>
+          <dt className="text-muted">− Expenses recorded today</dt><dd className="text-right">{formatRs(t.spentToday)}</dd>
+          <dt className="border-t border-border pt-1 font-semibold">= Cash in hand (you can submit up to this)</dt>
+          <dd className="border-t border-border pt-1 text-right font-semibold">{formatRs(t.inHand)}</dd>
+        </dl>
       </div>
 
       <SubmitForm inHand={t.inHand} />

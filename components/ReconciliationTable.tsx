@@ -14,7 +14,7 @@ function Flag({ children }: { children: React.ReactNode }) {
 // Collected vs submitted vs still-with-manager. Shared by the admin dashboard and manager detail page.
 export default function ReconciliationTable({ rows, linkNames = true, allTime = true }: { rows: Reconciliation[]; linkNames?: boolean; allTime?: boolean }) {
   const th = "px-4 py-3 font-medium";
-  const sum = (k: "collected" | "submitted" | "pending" | "stillWith") => rows.reduce((s, r) => s + r[k], 0);
+  const sum = (k: "collected" | "submitted" | "spent" | "stillWith") => rows.reduce((s, r) => s + r[k], 0);
 
   return (
     <div className="relative overflow-x-auto rounded-xl border border-border bg-surface shadow-sm shadow-black/[0.03]">
@@ -24,6 +24,7 @@ export default function ReconciliationTable({ rows, linkNames = true, allTime = 
             <th className={th}>Manager</th>
             <th className={`${th} text-right`}>Collected</th>
             <th className={`${th} text-right`}>Submitted</th>
+            <th className={`${th} text-right`}>Spent</th>
             <th className={`${th} text-right`}>Still with them</th>
             <th className={th}>{allTime ? "Holding since" : ""}</th>
           </tr>
@@ -45,6 +46,10 @@ export default function ReconciliationTable({ rows, linkNames = true, allTime = 
                   {formatRs(r.submitted)}
                   {r.pending > 0 && <span className="block text-xs text-muted">{formatRs(r.pending)} awaiting your confirmation</span>}
                 </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                  {formatRs(r.spent)}
+                  {r.spentPending > 0 && <span className="block text-xs text-muted">{formatRs(r.spentPending)} awaiting approval</span>}
+                </td>
                 <td className={`whitespace-nowrap px-4 py-3 text-right text-base font-semibold tabular-nums ${flagged ? "text-warn" : ""}`}>
                   {formatRs(r.stillWith)}
                 </td>
@@ -64,7 +69,7 @@ export default function ReconciliationTable({ rows, linkNames = true, allTime = 
             );
           })}
           {rows.length === 0 && (
-            <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No managers yet.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No managers yet.</td></tr>
           )}
         </tbody>
         {rows.length > 1 && (
@@ -73,6 +78,7 @@ export default function ReconciliationTable({ rows, linkNames = true, allTime = 
               <td className="px-4 py-3">All managers</td>
               <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatRs(sum("collected"))}</td>
               <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatRs(sum("submitted"))}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatRs(sum("spent"))}</td>
               <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatRs(sum("stillWith"))}</td>
               <td />
             </tr>

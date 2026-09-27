@@ -8,17 +8,19 @@ import { inputClass, primaryButtonClass } from "@/components/ui";
 type Values = { title: string; category: string; amount: string; expenseDate: string; notes: string };
 type FieldErrors = Partial<Record<keyof Values, string>>;
 
-// Shared by Add Expense (POST) and Edit Expense (PATCH).
+// Shared by Admin add/edit and the manager's "record an expense" form.
 export default function ExpenseForm({
   initial,
   action,
   method,
   submitLabel,
+  redirectTo,
 }: {
   initial: Values;
   action: string;
   method: "POST" | "PATCH";
   submitLabel: string;
+  redirectTo: string; // list page to return to, e.g. "/admin/expenses"
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export default function ExpenseForm({
         setSaving(false);
         return;
       }
-      router.push(`/admin/expenses?saved=${method === "POST" ? "added" : "updated"}`);
+      router.push(`${redirectTo}?saved=${method === "POST" ? "added" : "updated"}`);
       router.refresh();
     } catch {
       setError("Could not reach the server. Check your connection.");

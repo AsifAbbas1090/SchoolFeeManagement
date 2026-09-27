@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseInput";
 import { toDateInput } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
-import ExpenseForm from "../../ExpenseForm";
+import ExpenseForm from "@/components/ExpenseForm";
 
 export const metadata = { title: "Edit Expense · Admin" };
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ export default async function EditExpensePage({ params }: { params: { id: string
       <ExpenseForm
         method="PATCH"
         action={`/api/admin/expenses/${e.id}`}
+        redirectTo="/admin/expenses"
         submitLabel="Save changes"
         initial={{ title: e.title, category, amount: String(e.amount), expenseDate: toDateInput(e.expenseDate), notes: e.notes ?? "" }}
       />

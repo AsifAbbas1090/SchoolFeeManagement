@@ -51,7 +51,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
     }),
     managerId
       ? null
-      : prisma.expense.aggregate({ _sum: { amount: true }, where: rangeWhere(range) ? { expenseDate: rangeWhere(range) } : {} }),
+      : prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", ...(rangeWhere(range) && { expenseDate: rangeWhere(range) }) } }),
   ]);
 
   const total = totals._sum.amount ?? 0;

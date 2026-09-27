@@ -35,6 +35,13 @@ enum SubmissionStatus {
   CONFIRMED
 }
 
+// Admin's own expenses are APPROVED on creation; a manager's start PENDING until Admin reviews them.
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id            String   @id @default(cuid())
   name          String
@@ -51,6 +58,7 @@ model User {
   submissions          Submission[] @relation("SubmittedBy")
   confirmedSubmissions Submission[] @relation("ConfirmedBy")
   expensesAdded        Expense[]    @relation("ExpenseAddedBy")
+  expensesReviewed     Expense[]    @relation("ExpenseReviewedBy")
 
   @@map("users")
 }
@@ -134,7 +142,15 @@ model Expense {
   addedById   String
   addedBy     User     @relation("ExpenseAddedBy", fields: [addedById], references: [id])
 
+  status       ExpenseStatus @default(APPROVED)
+  reviewedAt   DateTime?
+  reviewNote   String?       // e.g. reason for rejection
+  reviewedById String?
+  reviewedBy   User?         @relation("ExpenseReviewedBy", fields: [reviewedById], references: [id])
+
   @@index([expenseDate])
+  @@index([status])
+  @@index([addedById, status])
   @@index([category])
   @@map("expenses")
 }

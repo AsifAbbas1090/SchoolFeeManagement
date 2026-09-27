@@ -1,6 +1,7 @@
 // Reconciliation: how much each manager collected vs handed to Admin, and what's still with them.
 import { prisma } from "@/lib/prisma";
 import { calendarDaysBetween, rangeWhere, type DateRange } from "@/lib/time";
+import { CASH_SPENDING_STATUSES } from "@/lib/stats";
 
 // Flag thresholds — tune to the school. A manager is flagged when the cash still with them is
 // at least LARGE_HOLDING, OR some of it has been held for OLD_HOLDING_DAYS days or more.
@@ -15,7 +16,9 @@ export type Reconciliation = {
   submitted: number; // pending + confirmed
   confirmed: number;
   pending: number;
-  stillWith: number; // collected − submitted
+  spent: number; // manager's own expenses paid from collected cash (pending + approved)
+  spentPending: number; // ...of which Admin hasn't reviewed yet
+  stillWith: number; // collected − submitted − spent
   holdingSince: Date | null; // oldest collection not yet covered by submissions (all-time view only)
   daysHeld: number | null;
   flagLarge: boolean;
@@ -48,7 +51,7 @@ export async function getReconciliation(opts: { managerId?: string; range?: Date
   const ids = managers.map((m) => m.id);
   if (ids.length === 0) return [];
 
-  const [collected, submitted] = await Promise.all([
+  const [collected, submitted, expenses] = await Promise.all([
     prisma.feePayment.groupBy({
       by: ["collectedById"],
       where: { collectedById: { in: ids }, ...(dates && { paymentDate: dates }) },
@@ -59,17 +62,26 @@ export async function getReconciliation(opts: { managerId?: string; range?: Date
       where: { submittedById: { in: ids }, ...(dates && { submissionDate: dates }) },
       _sum: { amount: true },
     }),
+    prisma.expense.groupBy({
+      by: ["addedById", "status"],
+      where: { addedById: { in: ids }, status: { in: [...CASH_SPENDING_STATUSES] }, ...(dates && { expenseDate: dates }) },
+      _sum: { amount: true },
+    }),
   ]);
 
   const collectedBy = new Map(collected.map((c) => [c.collectedById, c._sum.amount ?? 0]));
   const sub = (id: string, status: "PENDING" | "CONFIRMED") =>
     submitted.find((s) => s.submittedById === id && s.status === status)?._sum.amount ?? 0;
+  const exp = (id: string, status: "PENDING" | "APPROVED") =>
+    expenses.find((e) => e.addedById === id && e.status === status)?._sum.amount ?? 0;
 
   const rows = managers.map((m) => {
     const c = collectedBy.get(m.id) ?? 0;
     const confirmed = sub(m.id, "CONFIRMED");
     const pending = sub(m.id, "PENDING");
-    const stillWith = c - confirmed - pending;
+    const spentPending = exp(m.id, "PENDING");
+    const spent = exp(m.id, "APPROVED") + spentPending;
+    const stillWith = c - confirmed - pending - spent;
     return {
       managerId: m.id,
       name: m.name,
@@ -78,6 +90,8 @@ export async function getReconciliation(opts: { managerId?: string; range?: Date
       submitted: confirmed + pending,
       confirmed,
       pending,
+      spent,
+      spentPending,
       stillWith,
       holdingSince: null as Date | null,
       daysHeld: null as number | null,
@@ -95,7 +109,8 @@ export async function getReconciliation(opts: { managerId?: string; range?: Date
       select: { amount: true, paymentDate: true, collectedById: true },
     });
     for (const r of holders) {
-      const since = holdingSince(payments.filter((p) => p.collectedById === r.managerId), r.submitted);
+      // Cash handed over AND cash spent on expenses both leave the manager's hand.
+      const since = holdingSince(payments.filter((p) => p.collectedById === r.managerId), r.submitted + r.spent);
       r.holdingSince = since;
       r.daysHeld = since ? calendarDaysBetween(since, now) : null;
       r.flagOld = r.daysHeld !== null && r.daysHeld >= OLD_HOLDING_DAYS;

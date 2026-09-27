@@ -1,7 +1,7 @@
 import ImportStudentsView from "@/components/ImportStudentsView";
 
-export const metadata = { title: "Import Students · Admin" };
+export const metadata = { title: "Import Students · Management" };
 
 export default function ImportStudentsPage() {
-  return <ImportStudentsView base="/admin" />;
+  return <ImportStudentsView base="/manager" />;
 }

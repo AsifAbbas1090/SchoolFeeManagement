@@ -95,6 +95,23 @@ due     = owed − paid          (negative = paid in advance)
   ←/→ keys) and `ColumnChart` (one or two series, e.g. collected vs expenses). Both include a
   "Show as table" view for exact values.
 
+## Who can do what
+
+| Action | Admin | Manager |
+| --- | --- | --- |
+| Add students (one by one or bulk import) | ✅ | ✅ |
+| Edit a student / mark Left | ✅ | — |
+| Delete a student | ✅ only if they have **no payments** (otherwise mark Left) | — |
+| Record fee payments | — | ✅ |
+| Submit cash to Admin / confirm it | confirms | submits |
+| Record an expense paid from collected cash | — | ✅ (needs Admin approval) |
+| Add / edit / delete school expenses, approve or reject manager expenses | ✅ | — |
+
+**A manager's cash in hand** = everything they collected − everything they submitted − their
+expenses (pending or approved). Earlier days' leftover always carries forward, and the Submit page
+shows the breakdown. A **rejected** expense goes back into cash in hand (they still owe it). Only
+**approved** expenses count in school-wide expense totals.
+
 ## Admin reporting
 
 - **Dashboard** — collected today / this month / all-time, expenses, net, outstanding dues, and

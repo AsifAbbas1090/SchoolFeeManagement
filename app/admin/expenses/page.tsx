@@ -8,6 +8,7 @@ import { formatDate, formatRs } from "@/lib/format";
 import { PageHeader, StatCard, primaryButtonClass } from "@/components/ui";
 import UrlFilters from "@/components/UrlFilters";
 import DeleteExpenseButton from "./DeleteExpenseButton";
+import ReviewButtons from "./ReviewButtons";
 
 export const metadata = { title: "Expenses · Admin" };
 export const dynamic = "force-dynamic";
@@ -17,18 +18,25 @@ type Search = { saved?: string; from?: string; to?: string; category?: string };
 export default async function ExpensesPage({ searchParams }: { searchParams: Search }) {
   const range = parseDateRange(searchParams.from, searchParams.to);
   const category = (EXPENSE_CATEGORIES as readonly string[]).includes(searchParams.category ?? "") ? searchParams.category : undefined;
+  // School expenses = APPROVED only. Managers' pending claims are reviewed in their own section above.
   const where: Prisma.ExpenseWhereInput = {
+    status: "APPROVED",
     ...(rangeWhere(range) && { expenseDate: rangeWhere(range) }),
     ...(category && { category }),
   };
   const filtered = Boolean(where.expenseDate || where.category);
   const yearStart = startOfDay(`${dayKey().slice(0, 4)}-01-01`); // 1 Jan, school time
 
-  const [expenses, filteredSum, month, year] = await Promise.all([
+  const [expenses, filteredSum, month, year, pendingReview] = await Promise.all([
     prisma.expense.findMany({ where, orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }] }),
     prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where }),
-    prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: startOfMonth() } } }),
-    prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: yearStart } } }),
+    prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
+    prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", expenseDate: { gte: yearStart } } }),
+    prisma.expense.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      include: { addedBy: { select: { name: true } } },
+    }),
   ]);
 
   const saved = searchParams.saved === "added" ? "Expense added." : searchParams.saved === "updated" ? "Expense updated." : null;
@@ -46,6 +54,46 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
         <p role="status" className="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">
           ✓ {saved}
         </p>
+      )}
+
+      {pendingReview.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-1 text-lg font-semibold">
+            Awaiting your approval <span className="ml-1 rounded-full bg-foreground/10 px-2 py-0.5 align-middle text-xs">{pendingReview.length}</span>
+          </h2>
+          <p className="mb-3 text-sm text-muted">Paid by managers from fee cash they collected. Approved ones count as school expenses.</p>
+          <div className="relative overflow-x-auto rounded-xl border border-border bg-surface shadow-sm shadow-black/[0.03]">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border text-left text-muted">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Manager</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Title</th>
+                  <th className="px-4 py-3 font-medium">Category</th>
+                  <th className="px-4 py-3 text-right font-medium">Amount</th>
+                  <th className="px-4 py-3"><span className="sr-only">Review</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingReview.map((e) => (
+                  <tr key={e.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-medium">{e.addedBy.name}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatDate(e.expenseDate)}</td>
+                    <td className="px-4 py-3">
+                      {e.title}
+                      {e.notes && <span className="block text-xs text-muted">{e.notes}</span>}
+                    </td>
+                    <td className="px-4 py-3">{e.category ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums">{formatRs(e.amount)}</td>
+                    <td className="px-4 py-3">
+                      <ReviewButtons id={e.id} label={`${e.title} (${formatRs(e.amount)}) from ${e.addedBy.name}`} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">

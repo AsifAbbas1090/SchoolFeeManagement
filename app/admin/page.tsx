@@ -22,19 +22,20 @@ export default async function AdminDashboard() {
   const chartFrom = sixMonthsAgo < thirtyDaysAgo ? sixMonthsAgo : thirtyDaysAgo;
   const [lmFrom, lmTo] = lastMonthToDate(now);
 
-  const [today, month, lastMonthSoFar, allTime, expMonth, expAll, recon, students, pending, recentPayments, recentExpenses] =
+  const [today, month, lastMonthSoFar, allTime, expMonth, expAll, recon, students, pending, recentPayments, recentExpenses, expensesToReview] =
     await Promise.all([
       prisma.feePayment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: startOfDay() } } }),
       prisma.feePayment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: startOfMonth() } } }),
       prisma.feePayment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: lmFrom, lt: lmTo } } }),
       prisma.feePayment.aggregate({ _sum: { amount: true } }),
-      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: startOfMonth() } } }),
-      prisma.expense.aggregate({ _sum: { amount: true } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED" } }),
       getReconciliation({}, now),
       listStudentsWithDues(),
       prisma.submission.aggregate({ _sum: { amount: true }, _count: true, where: { status: "PENDING" } }),
       prisma.feePayment.findMany({ where: { paymentDate: { gte: chartFrom } }, select: { amount: true, paymentDate: true } }),
-      prisma.expense.findMany({ where: { expenseDate: { gte: sixMonthsAgo } }, select: { amount: true, expenseDate: true } }),
+      prisma.expense.findMany({ where: { status: "APPROVED", expenseDate: { gte: sixMonthsAgo } }, select: { amount: true, expenseDate: true } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where: { status: "PENDING" } }),
     ]);
 
   const daily = bucketize(recentPayments, "day", 30, now);
@@ -107,11 +108,18 @@ export default async function AdminDashboard() {
             </span>
           )}
         </h2>
-        {pending._count > 0 && (
-          <Link href="/admin/submissions" className="text-sm font-medium text-accent hover:underline">
-            {pending._count} submission{pending._count === 1 ? "" : "s"} ({formatRs(sum(pending))}) waiting for you to confirm →
-          </Link>
-        )}
+        <div className="flex flex-col items-end gap-1">
+          {pending._count > 0 && (
+            <Link href="/admin/submissions" className="text-sm font-medium text-accent hover:underline">
+              {pending._count} submission{pending._count === 1 ? "" : "s"} ({formatRs(sum(pending))}) waiting for you to confirm →
+            </Link>
+          )}
+          {expensesToReview._count > 0 && (
+            <Link href="/admin/expenses" className="text-sm font-medium text-accent hover:underline">
+              {expensesToReview._count} manager expense{expensesToReview._count === 1 ? "" : "s"} ({formatRs(sum(expensesToReview))}) to approve →
+            </Link>
+          )}
+        </div>
       </div>
       <ReconciliationTable rows={recon} />
     </>

@@ -17,7 +17,8 @@ const COLUMNS: [string, string][] = [
   ["admission_fee", "Admission fee"],
 ];
 
-export default function ImportStudents() {
+// `base` is "/admin" or "/manager": picks the API endpoint and where "View students" goes.
+export default function ImportStudents({ base }: { base: "/admin" | "/manager" }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -33,7 +34,7 @@ export default function ImportStudents() {
     setBusy(mode);
     setError(null);
     try {
-      const res = await fetch("/api/admin/students/import", { method: "POST", body });
+      const res = await fetch(`/api${base}/students/import`, { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
@@ -82,7 +83,7 @@ export default function ImportStudents() {
         </p>
         {result.invalidCount > 0 && <p>{result.invalidCount} row{result.invalidCount === 1 ? " was" : "s were"} skipped because of errors.</p>}
         <div className="flex gap-3">
-          <Link href="/admin/students" className={primaryButtonClass}>View students</Link>
+          <Link href={`${base}/students`} className={primaryButtonClass}>View students</Link>
           <button onClick={reset} className="rounded-md border border-border px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10">
             Import another file
           </button>

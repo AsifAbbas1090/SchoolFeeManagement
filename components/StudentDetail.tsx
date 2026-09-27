@@ -6,7 +6,7 @@ import { PageHeader, StatCard } from "@/components/ui";
 import StudentAdminActions from "@/components/StudentAdminActions";
 
 // Shared by /admin/students/[id] and /manager/students/[id]. Admin gets Edit / Mark as Left.
-export default async function StudentDetail({ id, basePath, isAdmin }: { id: string; basePath: string; isAdmin: boolean }) {
+export default async function StudentDetail({ id, basePath, isAdmin, justAdded = false }: { id: string; basePath: string; isAdmin: boolean; justAdded?: boolean }) {
   const detail = await getStudentDetail(id);
   if (!detail) notFound();
   const { student: s, balance } = detail;
@@ -31,8 +31,14 @@ export default async function StudentDetail({ id, basePath, isAdmin }: { id: str
       <PageHeader
         title={s.name}
         subtitle={`${s.className} · s/o ${s.fatherName}`}
-        action={isAdmin ? <StudentAdminActions studentId={s.id} studentName={s.name} status={s.status} /> : undefined}
+        action={isAdmin ? <StudentAdminActions studentId={s.id} studentName={s.name} status={s.status} paymentCount={s.feePayments.length} /> : undefined}
       />
+
+      {justAdded && (
+        <p role="status" className="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">
+          ✓ {s.name} added. You can record their first payment now.
+        </p>
+      )}
 
       {left && (
         <p className="mb-4 rounded-md border border-border bg-foreground/5 px-3 py-2 text-sm ">
