@@ -1,0 +1,140 @@
+// Prisma schema for the School Fee Collection System
+// DB host: Supabase Postgres (project cezivxtvbmfszrgxtqtt)
+//
+// Money is stored as Int (whole rupees) — exact sums, no float rounding drift.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooled connection — used by the running app (Next.js / serverless-safe)
+  url       = env("DATABASE_URL")
+  // Direct connection — used only for migrations
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+}
+
+enum StudentStatus {
+  ACTIVE
+  LEFT
+}
+
+enum FeeType {
+  ADMISSION
+  MONTHLY
+}
+
+enum SubmissionStatus {
+  PENDING
+  CONFIRMED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  username      String   @unique
+  passwordHash  String
+  role          Role
+  phone         String?
+  isActive      Boolean  @default(true) // v2: Admin can deactivate a manager
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  studentsAdded        Student[]    @relation("StudentCreatedBy")
+  feePayments          FeePayment[] @relation("PaymentCollectedBy")
+  submissions          Submission[] @relation("SubmittedBy")
+  confirmedSubmissions Submission[] @relation("ConfirmedBy")
+  expensesAdded        Expense[]    @relation("ExpenseAddedBy")
+
+  @@map("users")
+}
+
+model Student {
+  id            String        @id @default(cuid())
+  name          String
+  fatherName    String
+  className     String        // free text, required — e.g. "Class 5", "Nursery", "8-B"
+  phoneNumber   String
+  admissionFee  Int?          // one-time, optional
+  monthlyFee    Int           // recurring, required, differs per student
+  admissionDate DateTime?
+  status        StudentStatus @default(ACTIVE)
+  leftAt        DateTime?     // set when marked LEFT — monthly fees stop accruing after this month
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  createdById   String
+  createdBy     User          @relation("StudentCreatedBy", fields: [createdById], references: [id])
+
+  feePayments   FeePayment[]
+
+  @@index([status])
+  @@index([name])
+  @@index([fatherName])
+  @@index([className])
+  @@map("students")
+}
+
+model FeePayment {
+  id            String   @id @default(cuid())
+  amount        Int
+  feeType       FeeType
+  forMonth      String?  // "YYYY-MM" — only when feeType = MONTHLY
+  paymentDate   DateTime @default(now())
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id])
+
+  collectedById String
+  collectedBy   User     @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
+
+  @@index([studentId])
+  @@index([collectedById, paymentDate])
+  @@index([paymentDate])
+  @@map("fee_payments")
+}
+
+model Submission {
+  id             String           @id @default(cuid())
+  amount         Int
+  submissionDate DateTime         @default(now())
+  status         SubmissionStatus @default(PENDING)
+  notes          String?
+  confirmedAt    DateTime?
+
+  submittedById  String
+  submittedBy    User             @relation("SubmittedBy", fields: [submittedById], references: [id])
+
+  confirmedById  String?
+  confirmedBy    User?            @relation("ConfirmedBy", fields: [confirmedById], references: [id])
+
+  @@index([submittedById, submissionDate])
+  @@index([status])
+  @@map("submissions")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  category    String?  // Salary | Utilities | Supplies | Maintenance | Other
+  amount      Int
+  expenseDate DateTime @default(now())
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  addedById   String
+  addedBy     User     @relation("ExpenseAddedBy", fields: [addedById], references: [id])
+
+  @@index([expenseDate])
+  @@index([category])
+  @@map("expenses")
+}

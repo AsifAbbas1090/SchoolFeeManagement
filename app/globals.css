@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Three-colour system: black, white, emerald — plus red reserved ONLY for warnings.
+  Values are RGB channels so Tailwind opacity modifiers work (bg-accent/10).
+  Every text/button pair is >= 4.5:1; chart colours validated with the dataviz palette validator.
+*/
+:root {
+  --bg: 250 250 250;          /* #fafafa */
+  --surface: 255 255 255;     /* #ffffff */
+  --fg: 10 10 10;             /* #0a0a0a */
+  --muted: 107 107 107;       /* #6b6b6b — 5.1:1 on bg */
+  --border: 231 231 231;      /* #e7e7e7 */
+  --grid: 241 241 241;        /* chart gridlines */
+
+  --accent: 4 120 87;         /* #047857 — links, accent text (5.5:1) */
+  --accent-strong: 4 120 87;  /* button fill */
+  --accent-fg: 255 255 255;   /* text on accent fill (5.5:1) */
+  --accent-soft: 236 253 245; /* #ecfdf5 — tinted panels */
+
+  --chart: 5 150 105;         /* #059669 — series 1 (vs #fff 3.8:1) */
+  --chart-2: 82 82 82;        /* #525252 — neutral comparison series */
+
+  --warn: 220 38 38;          /* #dc2626 — warnings only (4.8:1) */
+  --warn-soft: 254 242 242;   /* #fef2f2 */
+  color-scheme: light;
+}
+
+.dark {
+  --bg: 10 10 10;             /* #0a0a0a */
+  --surface: 20 20 20;        /* #141414 */
+  --fg: 237 237 237;
+  --muted: 163 163 163;       /* #a3a3a3 — 7.8:1 */
+  --border: 38 38 38;         /* #262626 */
+  --grid: 30 30 30;
+
+  --accent: 52 211 153;       /* #34d399 — 9.8:1 */
+  --accent-strong: 16 185 129;/* #10b981 */
+  --accent-fg: 3 20 13;       /* #03140d on emerald (7.5:1) */
+  --accent-soft: 15 42 32;    /* #0f2a20 */
+
+  --chart: 14 165 114;        /* #0ea572 */
+  --chart-2: 115 115 115;     /* #737373 */
+
+  --warn: 248 113 113;        /* #f87171 */
+  --warn-soft: 45 18 18;      /* #2d1212 */
+  color-scheme: dark;
+}
+
+body {
+  color: rgb(var(--fg));
+  background: rgb(var(--bg));
+}
+
+/* Subtle emerald glow behind hero panels (decorative; stays in the palette). */
+.hero-glow {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(var(--accent-strong) / 0.14), transparent 55%),
+    rgb(var(--surface));
+}
