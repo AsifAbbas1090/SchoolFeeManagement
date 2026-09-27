@@ -149,3 +149,26 @@ prisma/
 
 On Windows, stop `npm run dev` before running `prisma generate` / migrations after a schema change —
 the dev server locks Prisma's engine file (`EPERM` error otherwise).
+
+## Production server
+
+Live at **https://16.112.153.201** (AWS EC2, Ubuntu 26.04, ap-south-2).
+
+| Piece | Where |
+| --- | --- |
+| App code | `/srv/school-fee-system` (owned by the `feeapp` system user) |
+| Secrets | `/srv/school-fee-system/.env` — mode 600, readable only by `feeapp`; not in git |
+| App process | systemd `school-fee.service` → `next start` on **127.0.0.1:3000** (not reachable from outside) |
+| Web server | nginx → `/etc/nginx/sites-available/school-fee` (HTTP → HTTPS redirect, gzip, security headers) |
+| HTTPS | Let's Encrypt **IP certificate** (short-lived, ~6 days) via certbot in `/opt/certbot`; renewed by `certbot-renew.timer` twice a day |
+
+**Deploy an update** (after pushing to `main`):
+
+```bash
+ssh -i feesystem.pem ubuntu@16.112.153.201
+sudo bash /srv/school-fee-system/scripts/deploy.sh
+```
+
+Useful commands on the server: `systemctl status school-fee`, `journalctl -u school-fee -f` (live logs),
+`systemctl list-timers certbot-renew.timer`, `sudo certbot certificates`.
+
