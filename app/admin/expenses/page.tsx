@@ -32,7 +32,11 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
   const yearStart = startOfDay(`${dayKey().slice(0, 4)}-01-01`); // 1 Jan, school time
 
   const [expenses, filteredSum, month, year, pendingReview] = await Promise.all([
-    prisma.expense.findMany({ where, orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }] }),
+    prisma.expense.findMany({
+      where,
+      orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
+      include: { addedBy: { select: { name: true, role: true } }, reviewedBy: { select: { name: true } } },
+    }),
     prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED", expenseDate: { gte: yearStart } } }),
@@ -133,6 +137,8 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
               <th className="px-4 py-3 font-medium">Title</th>
               <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
+              <th className="px-4 py-3 font-medium">Added by</th>
+              <th className="px-4 py-3 font-medium">Approved by</th>
               <th className="px-4 py-3 font-medium">Notes</th>
               <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
             </tr>
@@ -144,6 +150,20 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
                 <td className="px-4 py-3 font-medium">{e.title}</td>
                 <td className="px-4 py-3">{e.category ?? <span className="text-muted">—</span>}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums">{formatRs(e.amount)}</td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  {e.addedBy.name}
+                  {e.addedBy.role === "MANAGER" && <span className="block text-xs text-muted">Manager</span>}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  {e.reviewedBy ? (
+                    <>
+                      <span className="font-medium">{e.reviewedBy.name}</span>
+                      {e.reviewedAt && <span className="block text-xs text-muted">{formatDate(e.reviewedAt)}</span>}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted">Admin entry</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-muted">{e.notes ?? "—"}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">
                   <Link href={`/admin/expenses/${e.id}/edit`} className="mr-4 text-sm text-accent hover:underline">Edit</Link>
@@ -152,7 +172,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
               </tr>
             ))}
             {expenses.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-muted">{filtered ? "No expenses match these filters." : "No expenses yet."}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-muted">{filtered ? "No expenses match these filters." : "No expenses yet."}</td></tr>
             )}
           </tbody>
           {expenses.length > 0 && (
@@ -160,7 +180,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
               <tr>
                 <td colSpan={3} className="px-4 py-3 text-right font-medium">Total</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums">{formatRs(filteredSum._sum.amount ?? 0)}</td>
-                <td colSpan={2} />
+                <td colSpan={4} />
               </tr>
             </tfoot>
           )}

@@ -74,7 +74,13 @@ export default async function ManagerExpensesPage({ searchParams }: { searchPara
                 <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums">{formatRs(e.amount)}</td>
                 <td className="px-4 py-3">
                   <StatusBadge status={e.status} />
-                  {e.reviewNote && <span className="ml-2 text-xs text-muted">“{e.reviewNote}”</span>}
+                  {e.reviewedBy && (
+                    <span className="ml-2 text-xs text-muted">
+                      by <span className="font-medium text-foreground">{e.reviewedBy.name}</span>
+                      {e.reviewedAt && ` · ${formatDate(e.reviewedAt)}`}
+                    </span>
+                  )}
+                  {e.reviewNote && <span className="block text-xs text-muted">“{e.reviewNote}”</span>}
                 </td>
               </tr>
             ))}

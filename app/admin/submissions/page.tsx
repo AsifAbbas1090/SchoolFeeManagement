@@ -63,7 +63,7 @@ export default async function SubmissionsPage() {
         <div className="relative overflow-x-auto rounded-xl border border-border bg-surface shadow-sm shadow-black/[0.03]">
           <table className="w-full text-sm">
             <thead className="border-b border-border text-left text-muted">
-              <tr><th className={th}>Manager</th><th className={`${th} text-right`}>Amount</th><th className={th}>Submitted</th><th className={th}>Confirmed</th><th className={th}>Notes</th></tr>
+              <tr><th className={th}>Manager</th><th className={`${th} text-right`}>Amount</th><th className={th}>Submitted</th><th className={th}>Confirmed by</th><th className={th}>Confirmed at</th><th className={th}>Notes</th></tr>
             </thead>
             <tbody>
               {confirmed.map((s) => (
@@ -71,15 +71,13 @@ export default async function SubmissionsPage() {
                   <td className="px-4 py-2.5 text-foreground">{s.submittedBy.name}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums text-foreground">{formatRs(s.amount)}</td>
                   <td className="whitespace-nowrap px-4 py-2.5">{formatDateTime(s.submissionDate)}</td>
-                  <td className="whitespace-nowrap px-4 py-2.5">
-                    {s.confirmedAt ? formatDateTime(s.confirmedAt) : "—"}
-                    {s.confirmedBy && ` · ${s.confirmedBy.name}`}
-                  </td>
+                  <td className="whitespace-nowrap px-4 py-2.5 font-medium text-foreground">{s.confirmedBy?.name ?? "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5">{s.confirmedAt ? formatDateTime(s.confirmedAt) : "—"}</td>
                   <td className="px-4 py-2.5">{s.notes ?? "—"}</td>
                 </tr>
               ))}
               {confirmed.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center">None confirmed yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center">None confirmed yet.</td></tr>
               )}
             </tbody>
           </table>

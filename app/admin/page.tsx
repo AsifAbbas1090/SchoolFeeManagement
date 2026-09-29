@@ -9,6 +9,8 @@ import { formatRs } from "@/lib/format";
 import { toArea, toLabels, toSeries } from "@/lib/chartData";
 import { Card, PageHeader, StatCard, TrendPill, trendOf } from "@/components/ui";
 import ReconciliationTable from "@/components/ReconciliationTable";
+import RecentApprovals from "@/components/RecentApprovals";
+import { getRecentApprovals } from "@/lib/activity";
 import AreaChart from "@/components/charts/AreaChart";
 import ColumnChart from "@/components/charts/ColumnChart";
 
@@ -25,7 +27,7 @@ export default async function AdminDashboard() {
   const chartFrom = sixMonthsAgo < thirtyDaysAgo ? sixMonthsAgo : thirtyDaysAgo;
   const [lmFrom, lmTo] = lastMonthToDate(now);
 
-  const [today, month, lastMonthSoFar, allTime, pfMonth, expMonth, expAll, recon, dues, pending, recentPayments, recentExpenses, expensesToReview] =
+  const [today, month, lastMonthSoFar, allTime, pfMonth, expMonth, expAll, recon, dues, pending, recentPayments, recentExpenses, expensesToReview, approvals] =
     await Promise.all([
       prisma.feePayment.aggregate({ _sum: { amount: true }, where: { ...c, paymentDate: { gte: startOfDay() } } }),
       prisma.feePayment.aggregate({ _sum: { amount: true }, where: { ...c, paymentDate: { gte: startOfMonth() } } }),
@@ -40,6 +42,7 @@ export default async function AdminDashboard() {
       prisma.feePayment.findMany({ where: { ...c, paymentDate: { gte: chartFrom } }, select: { amount: true, paymentDate: true } }),
       prisma.expense.findMany({ where: { ...c, status: "APPROVED", expenseDate: { gte: sixMonthsAgo } }, select: { amount: true, expenseDate: true } }),
       prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where: { ...c, status: "PENDING" } }),
+      getRecentApprovals(actor.campusId, 8),
     ]);
 
   const daily = bucketize(recentPayments, "day", 30, now);
@@ -124,6 +127,10 @@ export default async function AdminDashboard() {
         </div>
       </div>
       <ReconciliationTable rows={recon} />
+
+      <div className="mt-6">
+        <RecentApprovals items={approvals} />
+      </div>
     </>
   );
 }

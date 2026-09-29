@@ -11,14 +11,18 @@ export const dynamic = "force-dynamic";
 
 export default async function SubmitPage() {
   const session = await requireRole("MANAGER");
-  const [t, history] = await Promise.all([
+  const [t, history, pf] = await Promise.all([
     getManagerTotals(session.sub),
     prisma.submission.findMany({
       where: { submittedById: session.sub },
       orderBy: { submissionDate: "desc" },
       take: 50,
+      include: { confirmedBy: { select: { name: true } } },
     }),
+    // Paper Fund is cash like any fee: it's already inside "collected" and handed over with submissions.
+    prisma.feePayment.aggregate({ _sum: { amount: true }, where: { collectedById: session.sub, feeType: "PAPER_FUND" } }),
   ]);
+  const pfCollected = pf._sum.amount ?? 0;
 
   return (
     <>
@@ -41,6 +45,10 @@ export default async function SubmitPage() {
           <dt className="border-t border-border pt-1 font-semibold">= Cash in hand (you can submit up to this)</dt>
           <dd className="border-t border-border pt-1 text-right font-semibold">{formatRs(t.inHand)}</dd>
         </dl>
+        <p className="mt-2 text-xs text-muted">
+          Includes Paper Fund: you have collected {formatRs(pfCollected)} of Paper Fund in total. It is handed over in the same
+          submissions as fees — no separate step.
+        </p>
       </div>
 
       <SubmitForm inHand={t.inHand} />
@@ -63,7 +71,11 @@ export default async function SubmitPage() {
                 <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums">{formatRs(s.amount)}</td>
                 <td className="px-4 py-3">
                   <StatusBadge status={s.status} />
-                  {s.confirmedAt && <span className="ml-2 text-xs text-muted">{formatDateTime(s.confirmedAt)}</span>}
+                  {s.confirmedAt && (
+                    <span className="ml-2 text-xs text-muted">
+                      by <span className="font-medium text-foreground">{s.confirmedBy?.name ?? "Admin"}</span> · {formatDateTime(s.confirmedAt)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-muted">{s.notes ?? "—"}</td>
               </tr>
