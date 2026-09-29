@@ -49,9 +49,11 @@ async function rowsWithDues(campusId: string, where: Prisma.StudentWhereInput, t
     loadPaperFundRates(campusId),
   ]);
   if (students.length === 0) return [];
+  // Small subsets (search) filter by id; whole-campus lists group the campus's payments directly —
+  // passing thousands of ids in an IN (...) list costs far more than the grouped sum itself.
   const sums = await prisma.feePayment.groupBy({
     by: ["studentId", "feeType"],
-    where: { campusId, studentId: { in: students.map((s) => s.id) } },
+    where: take !== undefined ? { campusId, studentId: { in: students.map((s) => s.id) } } : { campusId },
     _sum: { amount: true },
   });
   const paid = new Map<string, { tuition: number; paperFund: number }>();

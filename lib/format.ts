@@ -1,26 +1,32 @@
 import { APP_TIME_ZONE, dayKey } from "@/lib/time";
 
+// Formatters are created once and reused — building a new one per call is slow on long tables.
+const numberFmt = new Intl.NumberFormat("en-US");
+const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: APP_TIME_ZONE });
+const dateTimeFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: APP_TIME_ZONE,
+});
+const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+
 export function formatRs(n: number): string {
   const sign = n < 0 ? "−" : "";
-  return `${sign}Rs ${Math.abs(n).toLocaleString("en-US")}`;
+  return `${sign}Rs ${numberFmt.format(Math.abs(n))}`;
 }
 
 export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: APP_TIME_ZONE });
+  return dateFmt.format(new Date(d));
 }
 
 export function formatDateTime(d: Date | string): string {
-  return new Date(d).toLocaleString("en-GB", {
-    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: APP_TIME_ZONE,
-  });
+  return dateTimeFmt.format(new Date(d));
 }
 
 // "2026-09" -> "Sept 2026"
 export function formatMonth(ym: string | null | undefined): string {
   if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return ym ?? "—";
   const [y, m] = ym.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+  return monthFmt.format(new Date(Date.UTC(y, m - 1, 15)));
 }
 
 // Date -> "YYYY-MM-DD" in school time, for <input type="date"> values.

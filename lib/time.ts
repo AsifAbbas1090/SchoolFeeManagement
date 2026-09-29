@@ -5,10 +5,15 @@ export const APP_TIME_ZONE = "Asia/Karachi";
 
 export type YearMonth = { year: number; month: number }; // month: 1–12
 
-export function yearMonthInTz(d: Date, timeZone = APP_TIME_ZONE): YearMonth {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).formatToParts(d);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  return { year: get("year"), month: get("month") };
+// Pakistan has no daylight saving, so school time is always UTC+05:00. Shifting the timestamp and
+// reading UTC fields gives the school-local date with plain arithmetic — this runs thousands of
+// times per page (every student × every billed month), where creating Intl formatters was the cost.
+const SCHOOL_OFFSET_MS = 5 * 60 * 60 * 1000;
+const schoolClock = (d: Date) => new Date(d.getTime() + SCHOOL_OFFSET_MS);
+
+export function yearMonthInTz(d: Date): YearMonth {
+  const t = schoolClock(d);
+  return { year: t.getUTCFullYear(), month: t.getUTCMonth() + 1 };
 }
 
 // Date -> "YYYY-MM" in school time (the format stored in FeePayment.forMonth).
@@ -28,7 +33,7 @@ export const APP_UTC_OFFSET = "+05:00";
 
 // Date -> "YYYY-MM-DD" in school time.
 export function dayKey(d: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  return schoolClock(d).toISOString().slice(0, 10);
 }
 
 // Midnight (school time) at the start of the given "YYYY-MM-DD" day.
