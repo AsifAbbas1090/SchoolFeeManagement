@@ -11,17 +11,21 @@ query is scoped to the signed-in user's campus (`lib/scope.ts`, `lib/auth.ts#get
 manager never sees another campus's students, payments, submissions, expenses or managers — a
 request using another campus's id is answered as "not found".
 
-| Campus | Admin login |
-| --- | --- |
-| Al-Abbas Boys Higher Secondary School Shah Jamal | `admin` / `admin123` |
-| Al-Abbas Girls Higher Secondary School Shah Jamal | `admin.girls` / `admin123` |
-| Al-Abbas Kids Grammar Public School | `admin.kids` / `admin123` |
+| Campus |
+| --- |
+| Al-Abbas Boys Higher Secondary School Shah Jamal |
+| Al-Abbas Girls Higher Secondary School Shah Jamal |
+| Al-Abbas Kids Grammar Public School |
 
-Each campus admin creates their own managers (**Managers → Add manager**). Demo managers (Boys campus):
-`manager1` / `manager123` (Bilal Ahmed), `manager2` / `manager123` (Sana Tariq), `manager3` / `manager123` (Imran Shah).
-Usernames are unique across all campuses, so there is one login page. **Change these passwords before real use.**
+Each campus has its own admin(s); admins create their own campus's managers (**Managers → Add manager**).
+Usernames are unique across all campuses, so there is one login page.
 
-> The database password is deliberately *not* written here — this file is committed to git.
+**Logins are shared privately — never commit real usernames/passwords to this (public) repo.**
+Production accounts were created directly on the server. `prisma/seed.ts` only creates demo
+accounts (`admin`, `admin.girls`, `admin.kids`, `manager1`/`manager2` with demo passwords) for a
+fresh **development** database; on production those demo logins are deactivated.
+
+> The database password is deliberately *not* written here — it lives only in `.env` (git-ignored).
 
 **Managers who leave:** Admin → Managers → **Deactivate**. They can't log in (an open session stops
 working immediately) and every payment, submission and expense they recorded stays in all reports.
