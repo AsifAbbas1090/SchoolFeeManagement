@@ -40,6 +40,7 @@ export default function ReconciliationTable({ rows, linkNames = true, allTime = 
                   ) : (
                     r.name
                   )}
+                  {!r.isActive && <span className="ml-2 rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-normal text-foreground/80">Inactive</span>}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">{formatRs(r.collected)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">

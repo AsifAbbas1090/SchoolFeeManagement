@@ -27,11 +27,12 @@ type Props = {
   homeHref: string; // "/admin" | "/manager"
   links: NavLink[];
   userName: string;
+  campusName: string; // the user's campus — every page shows only this campus's data
   children: React.ReactNode;
 };
 
 // Desktop (md+): fixed sidebar. Phones: top bar with a hamburger that opens the same links.
-export default function AppShell({ areaLabel, homeHref, links, userName, children }: Props) {
+export default function AppShell({ areaLabel, homeHref, links, userName, campusName, children }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -107,6 +108,7 @@ export default function AppShell({ areaLabel, homeHref, links, userName, childre
 
         {open && (
           <div ref={menuRef} id="mobile-menu" className="border-t border-border px-2 pb-3 pt-2 shadow-lg">
+            <p className="mx-1 mb-2 rounded-lg bg-foreground/5 px-3 py-2 text-xs font-medium text-foreground/80">{campusName}</p>
             <nav className="flex flex-col gap-1" aria-label="Main">
               {navItems("block py-2.5")}
             </nav>
@@ -123,9 +125,12 @@ export default function AppShell({ areaLabel, homeHref, links, userName, childre
 
       {/* ---------- Desktop sidebar ---------- */}
       <aside className="hidden border-r border-border bg-surface md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col">
-        <Link href={homeHref} className="px-4 py-5">
+        <Link href={homeHref} className="px-4 pb-3 pt-5">
           <Brand areaLabel={areaLabel} />
         </Link>
+        <p className="mx-4 mb-3 rounded-lg bg-foreground/5 px-3 py-2 text-xs font-medium leading-snug text-foreground/80" title={campusName}>
+          {campusName}
+        </p>
         <nav className="flex flex-1 flex-col gap-1 px-2" aria-label="Main">
           {navItems("py-2")}
         </nav>

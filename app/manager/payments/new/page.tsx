@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
-import { listStudentsWithDues } from "@/lib/students";
+import { loadPaperFundRates } from "@/lib/students";
 import { monthKey, startOfDay } from "@/lib/time";
-import { formatDateTime, formatMonth, formatRs } from "@/lib/format";
+import { feeTypeLabel, formatDateTime, formatRs } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
-import RecordPaymentForm, { type PayableStudent } from "./RecordPaymentForm";
+import RecordPaymentForm from "./RecordPaymentForm";
 
 export const metadata = { title: "Record Payment · Management" };
 export const dynamic = "force-dynamic";
@@ -12,27 +12,15 @@ export const dynamic = "force-dynamic";
 export default async function RecordPaymentPage() {
   const session = await requireRole("MANAGER");
 
-  const [students, today] = await Promise.all([
-    listStudentsWithDues(),
+  // Students are searched on demand (/api/manager/students/search), not all sent to the browser.
+  const [today, pf] = await Promise.all([
     prisma.feePayment.findMany({
-      where: { collectedById: session.sub, paymentDate: { gte: startOfDay() } },
+      where: { collectedById: session.sub, campusId: session.campusId, paymentDate: { gte: startOfDay() } },
       orderBy: { paymentDate: "desc" },
       include: { student: { select: { name: true } } },
     }),
+    loadPaperFundRates(session.campusId),
   ]);
-  // Active students, plus any who left but still owe money (arrears can still be collected).
-  const payable: PayableStudent[] = students
-    .filter((s) => s.status === "ACTIVE" || s.due > 0)
-    .map((s) => ({
-      id: s.id,
-      name: s.name,
-      fatherName: s.fatherName,
-      className: s.className,
-      due: s.due,
-      left: s.status === "LEFT",
-      monthlyFee: s.monthlyFee,
-      admissionFee: s.admissionFee,
-    }));
 
   const todayTotal = today.reduce((sum, p) => sum + p.amount, 0);
 
@@ -41,7 +29,7 @@ export default async function RecordPaymentPage() {
       <PageHeader title="Record Payment" subtitle="Search a student, check the amount, save. The form clears for the next one." />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <RecordPaymentForm students={payable} currentMonth={monthKey()} />
+        <RecordPaymentForm currentMonth={monthKey()} pfRates={Object.fromEntries(pf)} />
 
         <section aria-labelledby="today-heading" className="h-fit rounded-xl border border-border bg-surface shadow-sm shadow-black/[0.03]">
           <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
@@ -57,7 +45,7 @@ export default async function RecordPaymentPage() {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{p.student.name}</p>
                     <p className="text-xs text-muted">
-                      {p.feeType === "ADMISSION" ? "Admission" : `Monthly · ${formatMonth(p.forMonth)}`} · {formatDateTime(p.paymentDate).split(", ").pop()}
+                      {feeTypeLabel(p.feeType, p.forMonth)} · {formatDateTime(p.paymentDate).split(", ").pop()}
                     </p>
                   </div>
                   <span className="whitespace-nowrap font-medium tabular-nums">{formatRs(p.amount)}</span>

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getReconciliation } from "@/lib/reconciliation";
-import { listStudentsWithDues } from "@/lib/students";
+import { campusDueTotals } from "@/lib/students";
+import { requireRole } from "@/lib/auth";
 import { bucketize } from "@/lib/reports";
 import { addDaysKey, addMonthsKey, dayKey, lastMonthToDate, longToday, monthKey, startOfDay, startOfMonth } from "@/lib/time";
 import { formatRs } from "@/lib/format";
@@ -15,6 +16,8 @@ export const metadata = { title: "Dashboard · Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
+  const actor = await requireRole("ADMIN");
+  const c = { campusId: actor.campusId }; // every figure below is this campus only
   const now = new Date();
   const sum = (r: { _sum: { amount: number | null } }) => r._sum.amount ?? 0;
   const sixMonthsAgo = startOfMonth(addMonthsKey(monthKey(now), -5));
@@ -22,35 +25,34 @@ export default async function AdminDashboard() {
   const chartFrom = sixMonthsAgo < thirtyDaysAgo ? sixMonthsAgo : thirtyDaysAgo;
   const [lmFrom, lmTo] = lastMonthToDate(now);
 
-  const [today, month, lastMonthSoFar, allTime, expMonth, expAll, recon, students, pending, recentPayments, recentExpenses, expensesToReview] =
+  const [today, month, lastMonthSoFar, allTime, pfMonth, expMonth, expAll, recon, dues, pending, recentPayments, recentExpenses, expensesToReview] =
     await Promise.all([
-      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: startOfDay() } } }),
-      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: startOfMonth() } } }),
-      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { paymentDate: { gte: lmFrom, lt: lmTo } } }),
-      prisma.feePayment.aggregate({ _sum: { amount: true } }),
-      prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
-      prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED" } }),
-      getReconciliation({}, now),
-      listStudentsWithDues(),
-      prisma.submission.aggregate({ _sum: { amount: true }, _count: true, where: { status: "PENDING" } }),
-      prisma.feePayment.findMany({ where: { paymentDate: { gte: chartFrom } }, select: { amount: true, paymentDate: true } }),
-      prisma.expense.findMany({ where: { status: "APPROVED", expenseDate: { gte: sixMonthsAgo } }, select: { amount: true, expenseDate: true } }),
-      prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where: { status: "PENDING" } }),
+      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { ...c, paymentDate: { gte: startOfDay() } } }),
+      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { ...c, paymentDate: { gte: startOfMonth() } } }),
+      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { ...c, paymentDate: { gte: lmFrom, lt: lmTo } } }),
+      prisma.feePayment.aggregate({ _sum: { amount: true }, where: c }),
+      prisma.feePayment.aggregate({ _sum: { amount: true }, where: { ...c, feeType: "PAPER_FUND", paymentDate: { gte: startOfMonth() } } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED" } }),
+      getReconciliation({ campusId: actor.campusId }, now),
+      campusDueTotals(actor.campusId),
+      prisma.submission.aggregate({ _sum: { amount: true }, _count: true, where: { ...c, status: "PENDING" } }),
+      prisma.feePayment.findMany({ where: { ...c, paymentDate: { gte: chartFrom } }, select: { amount: true, paymentDate: true } }),
+      prisma.expense.findMany({ where: { ...c, status: "APPROVED", expenseDate: { gte: sixMonthsAgo } }, select: { amount: true, expenseDate: true } }),
+      prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where: { ...c, status: "PENDING" } }),
     ]);
 
   const daily = bucketize(recentPayments, "day", 30, now);
   const collectedMonths = bucketize(recentPayments, "month", 6, now);
   const expenseMonths = bucketize(recentExpenses.map((e) => ({ amount: e.amount, paymentDate: e.expenseDate })), "month", 6, now);
 
-  const owing = students.filter((s) => s.due > 0);
-  const outstanding = owing.reduce((s, x) => s + x.due, 0);
   const flagged = recon.filter((r) => r.flagLarge || r.flagOld).length;
   const netMonth = sum(month) - sum(expMonth);
   const netAll = sum(allTime) - sum(expAll);
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle={longToday(now)} />
+      <PageHeader title="Dashboard" subtitle={`${actor.campusName} · ${longToday(now)}`} />
 
       {/* Hero: the one number Admin opens this page for, with its 30-day trend */}
       <div className="mb-4 grid gap-4 xl:grid-cols-3">
@@ -72,7 +74,7 @@ export default async function AdminDashboard() {
         </section>
 
         <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-          <StatCard label="Collected today" value={formatRs(sum(today))} icon="coins" />
+          <StatCard label="Collected today" value={formatRs(sum(today))} icon="coins" hint={`Paper Fund this month: ${formatRs(sum(pfMonth))}`} />
           <StatCard label="Expenses this month" value={formatRs(sum(expMonth))} icon="receipt" />
           <StatCard label="Net this month" value={formatRs(netMonth)} icon="wallet" tone={netMonth < 0 ? "warn" : "accent"} hint="Collected − expenses" />
         </div>
@@ -84,10 +86,10 @@ export default async function AdminDashboard() {
         <StatCard label="Net · all time" value={formatRs(netAll)} icon="wallet" tone={netAll < 0 ? "warn" : "default"} />
         <StatCard
           label="Outstanding dues"
-          value={formatRs(outstanding)}
+          value={formatRs(dues.totalDue)}
           icon="alert"
-          tone={outstanding > 0 ? "warn" : "default"}
-          hint={`${owing.length} student${owing.length === 1 ? "" : "s"} owe fees`}
+          tone={dues.totalDue > 0 ? "warn" : "default"}
+          hint={`${dues.studentsOwing} student${dues.studentsOwing === 1 ? "" : "s"} · ${formatRs(dues.tuitionDue)} tuition + ${formatRs(dues.pfDue)} PF`}
         />
       </div>
 

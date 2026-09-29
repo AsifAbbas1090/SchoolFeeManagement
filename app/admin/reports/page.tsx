@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { parseDateRange, rangeWhere } from "@/lib/time";
 import { datePresets } from "@/lib/presets";
-import { formatDateTime, formatMonth, formatRs } from "@/lib/format";
+import { feeTypeLabel, formatDateTime, formatRs } from "@/lib/format";
 import { PageHeader, StatCard } from "@/components/ui";
 import UrlFilters from "@/components/UrlFilters";
 
@@ -15,9 +16,11 @@ const MAX_ROWS = 1000; // table cap; totals always cover every matching row
 type Search = { from?: string; to?: string; manager?: string; student?: string };
 
 export default async function ReportsPage({ searchParams }: { searchParams: Search }) {
+  const actor = await requireRole("ADMIN");
+  const c = { campusId: actor.campusId };
   const [managers, students] = await Promise.all([
-    prisma.user.findMany({ where: { role: "MANAGER" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.student.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, fatherName: true, className: true } }),
+    prisma.user.findMany({ where: { ...c, role: "MANAGER" }, orderBy: [{ isActive: "desc" }, { name: "asc" }], select: { id: true, name: true, isActive: true } }),
+    prisma.student.findMany({ where: c, orderBy: { name: "asc" }, select: { id: true, name: true, fatherName: true, className: true } }),
   ]);
 
   // Only accept ids that exist, so a stale/edited URL can't silently match nothing.
@@ -26,6 +29,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
   const range = parseDateRange(searchParams.from, searchParams.to);
 
   const where: Prisma.FeePaymentWhereInput = {
+    ...c,
     ...(rangeWhere(range) && { paymentDate: rangeWhere(range) }),
     ...(managerId && { collectedById: managerId }),
     ...(studentId && { studentId }),
@@ -47,15 +51,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
     // submit or spend, so these two ignore the student filter.
     prisma.submission.aggregate({
       _sum: { amount: true },
-      where: { ...(rangeWhere(range) && { submissionDate: rangeWhere(range) }), ...(managerId && { submittedById: managerId }) },
+      where: { ...c, ...(rangeWhere(range) && { submissionDate: rangeWhere(range) }), ...(managerId && { submittedById: managerId }) },
     }),
     managerId
       ? null
-      : prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", ...(rangeWhere(range) && { expenseDate: rangeWhere(range) }) } }),
+      : prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED", ...(rangeWhere(range) && { expenseDate: rangeWhere(range) }) } }),
   ]);
 
   const total = totals._sum.amount ?? 0;
-  const typeSum = (t: "ADMISSION" | "MONTHLY") => byType.find((b) => b.feeType === t)?._sum.amount ?? 0;
+  const typeSum = (t: "ADMISSION" | "MONTHLY" | "PAPER_FUND") => byType.find((b) => b.feeType === t)?._sum.amount ?? 0;
   const truncated = totals._count > rows.length;
 
   return (
@@ -67,7 +71,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         fields={[
           { name: "from", label: "From", type: "date" },
           { name: "to", label: "To", type: "date" },
-          { name: "manager", label: "Manager", type: "select", allLabel: "All managers", options: managers.map((m) => ({ value: m.id, label: m.name })) },
+          { name: "manager", label: "Manager", type: "select", allLabel: "All managers", options: managers.map((m) => ({ value: m.id, label: m.isActive ? m.name : `${m.name} (inactive)` })) },
           {
             name: "student",
             label: "Student",
@@ -82,7 +86,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
         <StatCard
           label="Collected"
           value={formatRs(total)}
-          hint={`${totals._count} payment${totals._count === 1 ? "" : "s"} · ${formatRs(typeSum("MONTHLY"))} monthly · ${formatRs(typeSum("ADMISSION"))} admission`}
+          hint={`${totals._count} payment${totals._count === 1 ? "" : "s"} · ${formatRs(typeSum("MONTHLY"))} monthly · ${formatRs(typeSum("PAPER_FUND"))} Paper Fund · ${formatRs(typeSum("ADMISSION"))} admission`}
         />
         <StatCard label="Submitted to Admin" value={formatRs(submitted._sum.amount ?? 0)} hint={managerId ? "By this manager, same dates" : "All managers, same dates"} />
         {expenses && <StatCard label="Expenses" value={formatRs(expenses._sum.amount ?? 0)} hint="Same dates" />}
@@ -109,7 +113,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
                   <Link href={`/admin/students/${p.student.id}`} className="text-accent hover:underline">{p.student.name}</Link>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5">{p.student.className}</td>
-                <td className="whitespace-nowrap px-4 py-2.5">{p.feeType === "ADMISSION" ? "Admission" : `Monthly · ${formatMonth(p.forMonth)}`}</td>
+                <td className="whitespace-nowrap px-4 py-2.5">{feeTypeLabel(p.feeType, p.forMonth)}</td>
                 <td className="px-4 py-2.5">{p.collectedBy.name}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right tabular-nums">{formatRs(p.amount)}</td>
               </tr>

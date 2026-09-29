@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputClass, primaryButtonClass } from "@/components/ui";
+import MoneyInput from "@/components/MoneyInput";
 
 type Values = {
   name: string;
@@ -61,23 +62,32 @@ export default function StudentForm({
     }
   }
 
-  const field = (name: keyof Values, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, help?: string) => (
+  const field = (
+    name: keyof Values,
+    label: string,
+    props: React.InputHTMLAttributes<HTMLInputElement> & { money?: boolean } = {},
+    help?: string
+  ) => {
+    const { money, ...inputProps } = props;
+    const Input = money ? MoneyInput : "input"; // money fields accept digits only
+    return (
     <div className="space-y-1">
       <label htmlFor={name} className="text-sm font-medium">{label}</label>
-      <input
+      <Input
         id={name}
         name={name}
         defaultValue={initial[name]}
         aria-invalid={!!fields[name]}
         aria-describedby={`${name}-msg`}
         className={`${inputClass} ${fields[name] ? "border-warn" : ""}`}
-        {...props}
+        {...inputProps}
       />
       <p id={`${name}-msg`} className={`min-h-4 text-xs ${fields[name] ? "text-warn" : "text-muted"}`}>
         {fields[name] ?? help}
       </p>
     </div>
-  );
+    );
+  };
 
   return (
     <form onSubmit={onSubmit} noValidate className="max-w-2xl space-y-2 rounded-xl border border-border bg-surface shadow-sm shadow-black/[0.03] p-6">
@@ -87,8 +97,8 @@ export default function StudentForm({
         {field("className", "Class", { required: true, autoComplete: "off", maxLength: 50 }, "Required. Type it any way, e.g. Class 5, Nursery, 8-B.")}
         {field("phoneNumber", "Phone number", { type: "tel", required: true, autoComplete: "off" })}
         {field("admissionDate", "Admission date", { type: "date" }, "Monthly billing starts from this month.")}
-        {field("monthlyFee", "Monthly fee (Rs)", { inputMode: "numeric", required: true }, "Required. Whole rupees.")}
-        {field("admissionFee", "Admission fee (Rs)", { inputMode: "numeric" }, "Optional — leave blank if none.")}
+        {field("monthlyFee", "Monthly fee (Rs)", { money: true, required: true }, "Required. Whole rupees, digits only.")}
+        {field("admissionFee", "Admission fee (Rs)", { money: true }, "Optional — leave blank if none.")}
       </div>
 
       {error && (

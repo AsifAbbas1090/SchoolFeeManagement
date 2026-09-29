@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if (!parsed.ok) return NextResponse.json({ error: "Please fix the highlighted fields.", fields: parsed.fields }, { status: 400 });
 
   try {
-    const expense = await prisma.expense.create({ data: { ...parsed.data, addedById: auth.session.sub }, select: { id: true } });
+    const expense = await prisma.expense.create({ data: { ...parsed.data, addedById: auth.session.sub, campusId: auth.session.campusId }, select: { id: true } });
     return NextResponse.json({ expense }, { status: 201 });
   } catch (err) {
     console.error("Create expense failed:", err);

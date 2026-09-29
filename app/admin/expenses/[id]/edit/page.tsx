@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseInput";
 import { toDateInput } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
@@ -10,7 +11,8 @@ export const metadata = { title: "Edit Expense · Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditExpensePage({ params }: { params: { id: string } }) {
-  const e = await prisma.expense.findUnique({ where: { id: params.id } });
+  const actor = await requireRole("ADMIN");
+  const e = await prisma.expense.findFirst({ where: { id: params.id, campusId: actor.campusId } });
   if (!e) notFound();
   const category = (EXPENSE_CATEGORIES as readonly string[]).includes(e.category ?? "") ? e.category! : "Other";
 

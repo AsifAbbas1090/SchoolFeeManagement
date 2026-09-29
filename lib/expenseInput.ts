@@ -1,5 +1,6 @@
 // Validation for expense create/edit. Pure — safe on client or server.
 import { startOfDay } from "@/lib/time";
+import { parsePositiveRupees } from "@/lib/money";
 
 export const EXPENSE_CATEGORIES = ["Utilities", "Salary", "Supplies", "Maintenance", "Other"] as const;
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
@@ -22,9 +23,8 @@ export function parseExpenseInput(
   const category = str(body.category) as ExpenseCategory;
   if (!EXPENSE_CATEGORIES.includes(category)) fields.category = "Choose a category.";
 
-  const rawAmount = typeof body.amount === "number" ? body.amount : Number(str(body.amount).replace(/,/g, ""));
-  if (!Number.isInteger(rawAmount) || rawAmount <= 0) fields.amount = "Enter a whole rupee amount greater than 0.";
-  else if (rawAmount > MAX_AMOUNT) fields.amount = "Amount is too large.";
+  const rawAmount = parsePositiveRupees(body.amount, MAX_AMOUNT);
+  if (rawAmount === "invalid") fields.amount = "Enter a whole rupee amount greater than 0 (digits only).";
 
   const rawDate = str(body.expenseDate);
   let expenseDate: Date | null = null;
@@ -35,5 +35,5 @@ export function parseExpenseInput(
   if (notes.length > 200) fields.notes = "Notes must be 200 characters or fewer.";
 
   if (Object.keys(fields).length) return { ok: false, fields };
-  return { ok: true, data: { title, category, amount: rawAmount, expenseDate: expenseDate!, notes: notes || null } };
+  return { ok: true, data: { title, category, amount: rawAmount as number, expenseDate: expenseDate!, notes: notes || null } };
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseInput";
 import { inputClass, primaryButtonClass } from "@/components/ui";
+import MoneyInput from "@/components/MoneyInput";
 
 type Values = { title: string; category: string; amount: string; expenseDate: string; notes: string };
 type FieldErrors = Partial<Record<keyof Values, string>>;
@@ -80,7 +81,7 @@ export default function ExpenseForm({
         </div>
         <div className="space-y-1">
           <label htmlFor="amount" className="text-sm font-medium">Amount (Rs)</label>
-          <input id="amount" name="amount" defaultValue={initial.amount} inputMode="numeric" required autoComplete="off" className={cls("amount")} aria-describedby="amount-msg" />
+          <MoneyInput id="amount" name="amount" defaultValue={initial.amount} required className={cls("amount")} aria-describedby="amount-msg" />
           {msg("amount", "Whole rupees.")}
         </div>
         <div className="space-y-1">

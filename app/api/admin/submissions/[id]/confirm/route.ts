@@ -9,12 +9,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   // Only flips PENDING -> CONFIRMED, atomically, so a double-click can't confirm twice.
   const { count } = await prisma.submission.updateMany({
-    where: { id: params.id, status: "PENDING" },
+    where: { id: params.id, campusId: auth.session.campusId, status: "PENDING" },
     data: { status: "CONFIRMED", confirmedAt: new Date(), confirmedById: auth.session.sub },
   });
 
   if (count === 0) {
-    const exists = await prisma.submission.findUnique({ where: { id: params.id }, select: { status: true } });
+    const exists = await prisma.submission.findFirst({ where: { id: params.id, campusId: auth.session.campusId }, select: { status: true } });
     return exists
       ? NextResponse.json({ error: "This submission is already confirmed." }, { status: 409 })
       : NextResponse.json({ error: "Submission not found." }, { status: 404 });

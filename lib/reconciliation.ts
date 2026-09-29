@@ -12,6 +12,7 @@ export type Reconciliation = {
   managerId: string;
   name: string;
   username: string;
+  isActive: boolean; // deactivated managers stay listed so any cash still with them is visible
   collected: number;
   submitted: number; // pending + confirmed
   confirmed: number;
@@ -25,28 +26,19 @@ export type Reconciliation = {
   flagOld: boolean;
 };
 
-/**
- * Oldest payment still in the manager's hand, assuming submissions hand over the OLDEST cash first
- * (first-in, first-out). Walk payments oldest→newest; the first one that pushes the running total
- * past everything submitted is the oldest rupee not yet handed over.
- */
-export function holdingSince(paymentsAsc: { amount: number; paymentDate: Date }[], submittedTotal: number): Date | null {
-  let running = 0;
-  for (const p of paymentsAsc) {
-    running += p.amount;
-    if (running > submittedTotal) return p.paymentDate;
-  }
-  return null;
-}
-
-export async function getReconciliation(opts: { managerId?: string; range?: DateRange } = {}, now = new Date()): Promise<Reconciliation[]> {
+// "Holding since" = the oldest payment still in the manager's hand, assuming submissions and
+// expenses hand over the OLDEST cash first (first-in, first-out) — computed in SQL below.
+export async function getReconciliation(
+  opts: { campusId: string; managerId?: string; range?: DateRange },
+  now = new Date()
+): Promise<Reconciliation[]> {
   const dates = opts.range ? rangeWhere(opts.range) : undefined;
   const allTime = !dates;
 
   const managers = await prisma.user.findMany({
-    where: { role: "MANAGER", ...(opts.managerId && { id: opts.managerId }) },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, username: true },
+    where: { role: "MANAGER", campusId: opts.campusId, ...(opts.managerId && { id: opts.managerId }) },
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    select: { id: true, name: true, username: true, isActive: true },
   });
   const ids = managers.map((m) => m.id);
   if (ids.length === 0) return [];
@@ -86,6 +78,7 @@ export async function getReconciliation(opts: { managerId?: string; range?: Date
       managerId: m.id,
       name: m.name,
       username: m.username,
+      isActive: m.isActive,
       collected: c,
       submitted: confirmed + pending,
       confirmed,
@@ -100,21 +93,23 @@ export async function getReconciliation(opts: { managerId?: string; range?: Date
     };
   });
 
-  // "How long has it been held" only makes sense against the full history.
+  // "How long has it been held" only makes sense against the full history. One indexed window
+  // query per holder finds the oldest payment not yet covered (FIFO) without loading every payment.
   const holders = rows.filter((r) => allTime && r.stillWith > 0);
-  if (holders.length) {
-    const payments = await prisma.feePayment.findMany({
-      where: { collectedById: { in: holders.map((h) => h.managerId) } },
-      orderBy: { paymentDate: "asc" },
-      select: { amount: true, paymentDate: true, collectedById: true },
-    });
-    for (const r of holders) {
-      // Cash handed over AND cash spent on expenses both leave the manager's hand.
-      const since = holdingSince(payments.filter((p) => p.collectedById === r.managerId), r.submitted + r.spent);
+  await Promise.all(
+    holders.map(async (r) => {
+      const found = await prisma.$queryRaw<{ paymentDate: Date }[]>`
+        SELECT "paymentDate" FROM (
+          SELECT "paymentDate", SUM(amount) OVER (ORDER BY "paymentDate", id) AS running
+          FROM fee_payments WHERE "collectedById" = ${r.managerId}
+        ) t
+        WHERE running > ${r.submitted + r.spent}
+        ORDER BY running LIMIT 1`;
+      const since = found[0]?.paymentDate ?? null;
       r.holdingSince = since;
       r.daysHeld = since ? calendarDaysBetween(since, now) : null;
       r.flagOld = r.daysHeld !== null && r.daysHeld >= OLD_HOLDING_DAYS;
-    }
-  }
+    })
+  );
   return rows;
 }

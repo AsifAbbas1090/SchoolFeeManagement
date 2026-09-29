@@ -13,7 +13,7 @@ const links: NavLink[] = [
 export default async function ManagerLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("MANAGER");
   return (
-    <AppShell areaLabel="Management" homeHref="/manager" links={links} userName={session.name}>
+    <AppShell areaLabel="Management" homeHref="/manager" links={links} userName={session.name} campusName={session.campusName}>
       {children}
     </AppShell>
   );

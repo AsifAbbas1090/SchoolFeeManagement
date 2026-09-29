@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { toDateInput } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import StudentForm from "@/components/StudentForm";
@@ -9,7 +10,8 @@ export const metadata = { title: "Edit Student · Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditStudentPage({ params }: { params: { id: string } }) {
-  const s = await prisma.student.findUnique({ where: { id: params.id } });
+  const actor = await requireRole("ADMIN");
+  const s = await prisma.student.findFirst({ where: { id: params.id, campusId: actor.campusId } });
   if (!s) notFound();
 
   return (

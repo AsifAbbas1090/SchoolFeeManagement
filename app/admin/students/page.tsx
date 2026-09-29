@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { listStudentsWithDues } from "@/lib/students";
+import { requireRole } from "@/lib/auth";
+import { listStudents } from "@/lib/students";
 import { PageHeader, primaryButtonClass } from "@/components/ui";
 import StudentsTable from "@/components/StudentsTable";
 import Icon from "@/components/icons";
@@ -7,14 +8,21 @@ import Icon from "@/components/icons";
 export const metadata = { title: "Students · Admin" };
 export const dynamic = "force-dynamic";
 
-export default async function StudentsPage({ searchParams }: { searchParams: { deleted?: string } }) {
-  const students = await listStudentsWithDues();
-  const active = students.filter((s) => s.status === "ACTIVE").length;
+type Search = { q?: string; due?: string; left?: string; page?: string; deleted?: string };
+
+export default async function StudentsPage({ searchParams }: { searchParams: Search }) {
+  const actor = await requireRole("ADMIN");
+  const list = await listStudents(actor.campusId, {
+    q: searchParams.q,
+    onlyDue: searchParams.due === "1",
+    includeLeft: searchParams.left === "1",
+    page: Number(searchParams.page) || 1,
+  });
   return (
     <>
       <PageHeader
         title="Students"
-        subtitle={`${active} active student${active === 1 ? "" : "s"}`}
+        subtitle={`${list.activeCount} active student${list.activeCount === 1 ? "" : "s"}`}
         action={
           <div className="flex gap-2">
             <Link href="/admin/students/new" className={primaryButtonClass}>
@@ -29,7 +37,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: { d
       {searchParams.deleted && (
         <p role="status" className="mb-4 rounded-md bg-accent-soft px-3 py-2 text-sm text-accent">✓ Deleted {searchParams.deleted}.</p>
       )}
-      <StudentsTable students={students} basePath="/admin/students" />
+      <StudentsTable rows={list.rows} basePath="/admin/students" total={list.total} page={list.page} pages={list.pages} leftCount={list.leftCount} />
     </>
   );
 }

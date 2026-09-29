@@ -27,3 +27,10 @@ export function formatMonth(ym: string | null | undefined): string {
 export function toDateInput(d: Date | null | undefined): string {
   return d ? dayKey(d) : "";
 }
+
+// "Admission", "Monthly · Sept 2026", "Paper Fund · Sept 2026"
+export function feeTypeLabel(feeType: string, forMonth: string | null | undefined): string {
+  if (feeType === "ADMISSION") return "Admission";
+  if (feeType === "PAPER_FUND") return `Paper Fund · ${formatMonth(forMonth)}`;
+  return `Monthly · ${formatMonth(forMonth)}`;
+}

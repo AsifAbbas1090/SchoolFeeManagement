@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { dayKey, parseDateRange, rangeWhere, startOfDay, startOfMonth } from "@/lib/time";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseInput";
 import { datePresets } from "@/lib/presets";
@@ -16,10 +17,13 @@ export const dynamic = "force-dynamic";
 type Search = { saved?: string; from?: string; to?: string; category?: string };
 
 export default async function ExpensesPage({ searchParams }: { searchParams: Search }) {
+  const actor = await requireRole("ADMIN");
+  const c = { campusId: actor.campusId };
   const range = parseDateRange(searchParams.from, searchParams.to);
   const category = (EXPENSE_CATEGORIES as readonly string[]).includes(searchParams.category ?? "") ? searchParams.category : undefined;
   // School expenses = APPROVED only. Managers' pending claims are reviewed in their own section above.
   const where: Prisma.ExpenseWhereInput = {
+    ...c,
     status: "APPROVED",
     ...(rangeWhere(range) && { expenseDate: rangeWhere(range) }),
     ...(category && { category }),
@@ -30,10 +34,10 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Sea
   const [expenses, filteredSum, month, year, pendingReview] = await Promise.all([
     prisma.expense.findMany({ where, orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }] }),
     prisma.expense.aggregate({ _sum: { amount: true }, _count: true, where }),
-    prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
-    prisma.expense.aggregate({ _sum: { amount: true }, where: { status: "APPROVED", expenseDate: { gte: yearStart } } }),
+    prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED", expenseDate: { gte: startOfMonth() } } }),
+    prisma.expense.aggregate({ _sum: { amount: true }, where: { ...c, status: "APPROVED", expenseDate: { gte: yearStart } } }),
     prisma.expense.findMany({
-      where: { status: "PENDING" },
+      where: { ...c, status: "PENDING" },
       orderBy: { createdAt: "asc" },
       include: { addedBy: { select: { name: true } } },
     }),

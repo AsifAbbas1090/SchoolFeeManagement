@@ -1,5 +1,8 @@
 // Prisma schema for the School Fee Collection System
-// DB host: Supabase Postgres (project cezivxtvbmfszrgxtqtt)
+// Live DB: Postgres on the app server; Supabase keeps a 15-minute backup copy.
+//
+// Multi-campus: every record carries campusId. Campuses are fully separate — queries are always
+// scoped to the signed-in user's campus (lib/scope.ts).
 //
 // Money is stored as Int (whole rupees) — exact sums, no float rounding drift.
 
@@ -9,10 +12,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // Pooled connection — used by the running app (Next.js / serverless-safe)
   url       = env("DATABASE_URL")
-  // Direct connection — used only for migrations
-  directUrl = env("DIRECT_URL")
+  directUrl = env("DIRECT_URL") // used for migrations
 }
 
 enum Role {
@@ -28,6 +29,12 @@ enum StudentStatus {
 enum FeeType {
   ADMISSION
   MONTHLY
+  PAPER_FUND
+}
+
+// Charges whose amount is decided month by month for the whole campus (not per student).
+enum ChargeKind {
+  PAPER_FUND
 }
 
 enum SubmissionStatus {
@@ -42,6 +49,22 @@ enum ExpenseStatus {
   REJECTED
 }
 
+model Campus {
+  id        String   @id
+  name      String   @unique
+  code      String   @unique // short slug, e.g. "boys"
+  createdAt DateTime @default(now())
+
+  users          User[]
+  students       Student[]
+  feePayments    FeePayment[]
+  submissions    Submission[]
+  expenses       Expense[]
+  monthlyCharges MonthlyCharge[]
+
+  @@map("campuses")
+}
+
 model User {
   id            String   @id @default(cuid())
   name          String
@@ -49,9 +72,12 @@ model User {
   passwordHash  String
   role          Role
   phone         String?
-  isActive      Boolean  @default(true) // v2: Admin can deactivate a manager
+  isActive      Boolean  @default(true) // deactivated managers can't log in; their history stays
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  campusId      String
+  campus        Campus   @relation(fields: [campusId], references: [id])
 
   studentsAdded        Student[]    @relation("StudentCreatedBy")
   feePayments          FeePayment[] @relation("PaymentCollectedBy")
@@ -59,7 +85,9 @@ model User {
   confirmedSubmissions Submission[] @relation("ConfirmedBy")
   expensesAdded        Expense[]    @relation("ExpenseAddedBy")
   expensesReviewed     Expense[]    @relation("ExpenseReviewedBy")
+  chargesSet           MonthlyCharge[]
 
+  @@index([campusId, role])
   @@map("users")
 }
 
@@ -80,8 +108,12 @@ model Student {
   createdById   String
   createdBy     User          @relation("StudentCreatedBy", fields: [createdById], references: [id])
 
+  campusId      String
+  campus        Campus        @relation(fields: [campusId], references: [id])
+
   feePayments   FeePayment[]
 
+  @@index([campusId, status])
   @@index([status])
   @@index([name])
   @@index([fatherName])
@@ -93,7 +125,7 @@ model FeePayment {
   id            String   @id @default(cuid())
   amount        Int
   feeType       FeeType
-  forMonth      String?  // "YYYY-MM" — only when feeType = MONTHLY
+  forMonth      String?  // "YYYY-MM" — for MONTHLY and PAPER_FUND
   paymentDate   DateTime @default(now())
   notes         String?
   createdAt     DateTime @default(now())
@@ -104,6 +136,10 @@ model FeePayment {
   collectedById String
   collectedBy   User     @relation("PaymentCollectedBy", fields: [collectedById], references: [id])
 
+  campusId      String
+  campus        Campus   @relation(fields: [campusId], references: [id])
+
+  @@index([campusId, paymentDate])
   @@index([studentId])
   @@index([collectedById, paymentDate])
   @@index([paymentDate])
@@ -124,6 +160,10 @@ model Submission {
   confirmedById  String?
   confirmedBy    User?            @relation("ConfirmedBy", fields: [confirmedById], references: [id])
 
+  campusId       String
+  campus         Campus           @relation(fields: [campusId], references: [id])
+
+  @@index([campusId, status])
   @@index([submittedById, submissionDate])
   @@index([status])
   @@map("submissions")
@@ -148,9 +188,32 @@ model Expense {
   reviewedById String?
   reviewedBy   User?         @relation("ExpenseReviewedBy", fields: [reviewedById], references: [id])
 
+  campusId     String
+  campus       Campus        @relation(fields: [campusId], references: [id])
+
+  @@index([campusId, status, expenseDate])
   @@index([expenseDate])
   @@index([status])
   @@index([addedById, status])
   @@index([category])
   @@map("expenses")
+}
+
+// One amount per campus per month (e.g. Paper Fund Oct 2026 = Rs 150). A month with no row = not set yet.
+model MonthlyCharge {
+  id        String     @id @default(cuid())
+  kind      ChargeKind @default(PAPER_FUND)
+  forMonth  String     // "YYYY-MM"
+  amount    Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  campusId  String
+  campus    Campus     @relation(fields: [campusId], references: [id])
+
+  setById   String
+  setBy     User       @relation(fields: [setById], references: [id])
+
+  @@unique([campusId, kind, forMonth])
+  @@map("monthly_charges")
 }

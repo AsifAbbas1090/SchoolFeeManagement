@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireApiRole } from "@/lib/apiAuth";
 
 const USERNAME_RE = /^[a-z0-9._-]{3,30}$/;
 
-// POST /api/admin/managers  { name, username, password, phone? }  — Admin only
+// POST /api/admin/managers  { name, username, password, phone? }  — Admin only.
+// The new manager belongs to the admin's own campus. Usernames are unique across ALL campuses
+// (so the single login page works without picking a campus).
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (session.role !== "ADMIN") return NextResponse.json({ error: "Only the Admin can add managers." }, { status: 403 });
+  const auth = await requireApiRole("ADMIN");
+  if (auth.error) return auth.error;
 
   let body: Record<string, unknown>;
   try {
@@ -48,7 +49,14 @@ export async function POST(req: Request) {
 
   try {
     const manager = await prisma.user.create({
-      data: { name, username, phone: phone || null, role: "MANAGER", passwordHash: await bcrypt.hash(password, 10) },
+      data: {
+        name,
+        username,
+        phone: phone || null,
+        role: "MANAGER",
+        passwordHash: await bcrypt.hash(password, 10),
+        campusId: auth.session.campusId,
+      },
       select: { id: true, name: true, username: true },
     });
     return NextResponse.json({ manager }, { status: 201 });

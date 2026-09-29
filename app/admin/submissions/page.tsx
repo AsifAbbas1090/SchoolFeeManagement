@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { formatDateTime, formatRs } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import ConfirmButton from "./ConfirmButton";
@@ -12,9 +13,11 @@ const include = {
 } as const;
 
 export default async function SubmissionsPage() {
+  const actor = await requireRole("ADMIN");
+  const c = { campusId: actor.campusId };
   const [pending, confirmed] = await Promise.all([
-    prisma.submission.findMany({ where: { status: "PENDING" }, orderBy: { submissionDate: "asc" }, include }),
-    prisma.submission.findMany({ where: { status: "CONFIRMED" }, orderBy: { confirmedAt: "desc" }, take: 50, include }),
+    prisma.submission.findMany({ where: { ...c, status: "PENDING" }, orderBy: { submissionDate: "asc" }, include }),
+    prisma.submission.findMany({ where: { ...c, status: "CONFIRMED" }, orderBy: { confirmedAt: "desc" }, take: 50, include }),
   ]);
   const pendingTotal = pending.reduce((s, x) => s + x.amount, 0);
 

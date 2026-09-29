@@ -7,13 +7,14 @@ const links: NavLink[] = [
   { href: "/admin/students", label: "Students", icon: "students" },
   { href: "/admin/submissions", label: "Submissions", icon: "inbox" },
   { href: "/admin/expenses", label: "Expenses", icon: "receipt" },
+  { href: "/admin/paper-fund", label: "Paper Fund", icon: "coins" },
   { href: "/admin/reports", label: "Reports", icon: "chart" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("ADMIN");
   return (
-    <AppShell areaLabel="Admin" homeHref="/admin" links={links} userName={session.name}>
+    <AppShell areaLabel="Admin" homeHref="/admin" links={links} userName={session.name} campusName={session.campusName}>
       {children}
     </AppShell>
   );

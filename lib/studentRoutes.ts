@@ -18,9 +18,10 @@ export async function createStudentHandler(req: Request, role: SessionRole) {
   const parsed = parseStudentInput(body);
   if (!parsed.ok) return NextResponse.json({ error: "Please fix the highlighted fields.", fields: parsed.fields }, { status: 400 });
 
+  // Duplicates are checked within the campus only — other campuses are separate schools.
   const key = duplicateKey(parsed.data.name, parsed.data.fatherName);
   const existing = await prisma.student.findMany({
-    where: { name: { equals: parsed.data.name, mode: "insensitive" } },
+    where: { campusId: auth.session.campusId, name: { equals: parsed.data.name, mode: "insensitive" } },
     select: { id: true, name: true, fatherName: true },
   });
   if (existing.some((s) => duplicateKey(s.name, s.fatherName) === key)) {
@@ -30,7 +31,7 @@ export async function createStudentHandler(req: Request, role: SessionRole) {
 
   try {
     const student = await prisma.student.create({
-      data: { ...parsed.data, createdById: auth.session.sub },
+      data: { ...parsed.data, createdById: auth.session.sub, campusId: auth.session.campusId },
       select: { id: true, name: true },
     });
     return NextResponse.json({ student }, { status: 201 });
@@ -61,8 +62,11 @@ export async function importStudentsHandler(req: Request, role: SessionRole) {
   if (!parsed.ok) return NextResponse.json({ error: parsed.fileError }, { status: 400 });
   const { rows, ignoredColumns } = parsed;
 
+  const campusId = auth.session.campusId;
   const loadExistingKeys = async (db: Pick<typeof prisma, "student">) =>
-    new Set((await db.student.findMany({ select: { name: true, fatherName: true } })).map((s) => duplicateKey(s.name, s.fatherName)));
+    new Set(
+      (await db.student.findMany({ where: { campusId }, select: { name: true, fatherName: true } })).map((s) => duplicateKey(s.name, s.fatherName))
+    );
 
   const summarize = (r: ImportRow[]) => ({
     rows: r.map(({ rowNumber, values, errors }) => ({ rowNumber, values, errors, valid: errors.length === 0 })),
@@ -82,7 +86,7 @@ export async function importStudentsHandler(req: Request, role: SessionRole) {
       markDuplicates(rows, await loadExistingKeys(tx));
       const valid = rows.filter((r) => r.data);
       if (valid.length === 0) return 0;
-      const res = await tx.student.createMany({ data: valid.map((r) => ({ ...r.data!, createdById: auth.session.sub })) });
+      const res = await tx.student.createMany({ data: valid.map((r) => ({ ...r.data!, createdById: auth.session.sub, campusId })) });
       return res.count;
     });
     return NextResponse.json({ ...summarize(rows), created });

@@ -4,22 +4,35 @@ Internal fee-collection, student-records and expense tool for a school. Two role
 seeded) and **Manager** (created by Admin). Next.js 14 (App Router) + Tailwind + Prisma + Supabase
 Postgres, with our own JWT auth (no third-party auth provider).
 
-## Login credentials (seeded — development only)
+## Campuses
 
-| Role    | Username   | Password     | Name        |
-| ------- | ---------- | ------------ | ----------- |
-| Admin   | `admin`    | `admin123`   | Admin       |
-| Manager | `manager1` | `manager123` | Bilal Ahmed |
-| Manager | `manager2` | `manager123` | Sana Tariq  |
-| Manager | `manager3` | `manager123` | Imran Shah  |
+Three **fully separate** campuses share one database; every record carries a `campusId` and every
+query is scoped to the signed-in user's campus (`lib/scope.ts`, `lib/auth.ts#getActor`). An admin or
+manager never sees another campus's students, payments, submissions, expenses or managers — a
+request using another campus's id is answered as "not found".
 
-`admin`, `manager1` and `manager2` come from `prisma/seed.ts`; `manager3` was created by the Admin
-through **Managers → Add manager** (the normal way to add staff). All are stored bcrypt-hashed in the
-`users` table. **Change them before real use.**
+| Campus | Admin login |
+| --- | --- |
+| Al-Abbas Boys Higher Secondary School Shah Jamal | `admin` / `admin123` |
+| Al-Abbas Girls Higher Secondary School Shah Jamal | `admin.girls` / `admin123` |
+| Al-Abbas Kids Grammar Public School | `admin.kids` / `admin123` |
 
-> The Supabase **database password** is deliberately *not* written here — this file is committed to
-> git. It lives only in `.env` (git-ignored). Get or reset it at Supabase Dashboard → Connect →
-> **Reset database password**.
+Each campus admin creates their own managers (**Managers → Add manager**). Demo managers (Boys campus):
+`manager1` / `manager123` (Bilal Ahmed), `manager2` / `manager123` (Sana Tariq), `manager3` / `manager123` (Imran Shah).
+Usernames are unique across all campuses, so there is one login page. **Change these passwords before real use.**
+
+> The database password is deliberately *not* written here — this file is committed to git.
+
+**Managers who leave:** Admin → Managers → **Deactivate**. They can't log in (an open session stops
+working immediately) and every payment, submission and expense they recorded stays in all reports.
+Delete is only possible for a manager with no records at all.
+
+## Paper Fund
+
+Decided **month by month per campus** (Admin → **Paper Fund**): one amount for every student in that
+campus for that month. Once set, every student billed that month owes it; unpaid PF keeps showing as
+**PF due**. Until a month is set, it owes nothing and shows "PF not set yet". Managers can take it
+with the monthly fee (**Monthly + PF**, saved as two rows in one transaction) or on its own.
 
 ## Setup
 
@@ -167,6 +180,20 @@ prisma/
 On Windows, stop `npm run dev` before running `prisma generate` / migrations after a schema change —
 the dev server locks Prisma's engine file (`EPERM` error otherwise).
 
+## Database, backups and failover
+
+- **Live DB:** PostgreSQL 18 **on the app server**, listening on 127.0.0.1 only (never exposed).
+- **Backup copy:** `db-backup.timer` runs every **15 min**: dumps the live DB to
+  `/var/backups/school-fee/` (daily copies kept 14 days) and restores it into **Supabase** (Seoul) in a
+  single transaction. `/api/health` → `backup.status` becomes `stale` if the last success is > 1 h old.
+  `scripts/deploy.sh` also takes a `pre-deploy-*.dump` before every migration.
+- **If the server dies:** Supabase holds a copy at most ~15 min old. On a new server, set
+  `DATABASE_URL`/`DIRECT_URL` to the Supabase URL (kept as `BACKUP_DATABASE_URL` in the server `.env`,
+  add `?pgbouncer=true&connection_limit=5` for the 6543 pooler), deploy, and it runs. To move back to a
+  local DB: `pg_dump` Supabase → `pg_restore` into the new local Postgres → switch the URLs back.
+- **Local development** uses the separate Supabase schema **`dev`** (`?schema=dev` in the local
+  `.env`). Never point development at `public` — that's the production backup and is overwritten.
+
 ## Production server
 
 Live at **https://16.112.153.201** (AWS EC2, Ubuntu 26.04, ap-south-2).
@@ -175,6 +202,7 @@ Live at **https://16.112.153.201** (AWS EC2, Ubuntu 26.04, ap-south-2).
 | --- | --- |
 | App code | `/srv/school-fee-system` (owned by the `feeapp` system user) |
 | Secrets | `/srv/school-fee-system/.env` — mode 600, readable only by `feeapp`; not in git |
+| Database | PostgreSQL 18 on this server (127.0.0.1:5432, db `schoolfee`); backup timer `db-backup.timer` |
 | App process | systemd `school-fee.service` → `next start` on **127.0.0.1:3000** (not reachable from outside) |
 | Web server | nginx → `/etc/nginx/sites-available/school-fee` (HTTP → HTTPS redirect, gzip, security headers) |
 | HTTPS | Let's Encrypt **IP certificate** (short-lived, ~6 days) via certbot in `/opt/certbot`; renewed by `certbot-renew.timer` twice a day |

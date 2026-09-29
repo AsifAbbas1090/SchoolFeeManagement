@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth";
 import { getReconciliation } from "@/lib/reconciliation";
 import { bucketize, bucketWindowStart } from "@/lib/reports";
 import { parseDateRange, startOfDay } from "@/lib/time";
@@ -23,8 +24,10 @@ export default async function ManagerDetailPage({
   params: { id: string };
   searchParams: { from?: string; to?: string };
 }) {
+  const actor = await requireRole("ADMIN");
+  // Another campus's manager simply doesn't exist here (404).
   const manager = await prisma.user.findFirst({
-    where: { id: params.id, role: "MANAGER" },
+    where: { id: params.id, role: "MANAGER", campusId: actor.campusId },
     select: { id: true, name: true, username: true, phone: true, isActive: true, createdAt: true },
   });
   if (!manager) notFound();
@@ -34,7 +37,7 @@ export default async function ManagerDetailPage({
   const now = new Date();
 
   const [[recon], payments] = await Promise.all([
-    getReconciliation({ managerId: manager.id, range: ranged ? range : undefined }, now),
+    getReconciliation({ campusId: actor.campusId, managerId: manager.id, range: ranged ? range : undefined }, now),
     prisma.feePayment.findMany({
       where: { collectedById: manager.id, paymentDate: { gte: startOfDay(bucketWindowStart(now)) } },
       select: { amount: true, paymentDate: true },

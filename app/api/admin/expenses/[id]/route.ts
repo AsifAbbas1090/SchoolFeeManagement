@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireApiRole } from "@/lib/apiAuth";
 import { parseExpenseInput } from "@/lib/expenseInput";
-
-const notFound = (err: unknown) => err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025";
 
 // PATCH /api/admin/expenses/:id — edit any field
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -17,10 +14,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.ok) return NextResponse.json({ error: "Please fix the highlighted fields.", fields: parsed.fields }, { status: 400 });
 
   try {
-    await prisma.expense.update({ where: { id: params.id }, data: parsed.data });
+    const { count } = await prisma.expense.updateMany({ where: { id: params.id, campusId: auth.session.campusId }, data: parsed.data });
+    if (count === 0) return NextResponse.json({ error: "Expense not found." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (notFound(err)) return NextResponse.json({ error: "Expense not found." }, { status: 404 });
     console.error("Update expense failed:", err);
     return NextResponse.json({ error: "Could not save changes. Try again." }, { status: 500 });
   }
@@ -32,10 +29,10 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (auth.error) return auth.error;
 
   try {
-    await prisma.expense.delete({ where: { id: params.id } });
+    const { count } = await prisma.expense.deleteMany({ where: { id: params.id, campusId: auth.session.campusId } });
+    if (count === 0) return NextResponse.json({ error: "Expense not found (already deleted?)." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (notFound(err)) return NextResponse.json({ error: "Expense not found (already deleted?)." }, { status: 404 });
     console.error("Delete expense failed:", err);
     return NextResponse.json({ error: "Could not delete. Try again." }, { status: 500 });
   }

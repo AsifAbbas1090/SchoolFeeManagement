@@ -11,6 +11,7 @@ export type SessionPayload = {
   sub: string; // user id
   role: SessionRole;
   name: string;
+  campusId: string; // every query is scoped to this campus (lib/scope.ts)
 };
 
 function getSecret() {
@@ -20,7 +21,7 @@ function getSecret() {
 }
 
 export async function signSession(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ role: payload.role, name: payload.name })
+  return new SignJWT({ role: payload.role, name: payload.name, campusId: payload.campusId })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
@@ -35,7 +36,8 @@ export async function verifySession(token: string | undefined | null): Promise<S
     const { payload } = await jwtVerify(token, getSecret(), { algorithms: ["HS256"] });
     if (typeof payload.sub !== "string") return null;
     if (payload.role !== "ADMIN" && payload.role !== "MANAGER") return null;
-    return { sub: payload.sub, role: payload.role, name: String(payload.name ?? "") };
+    if (typeof payload.campusId !== "string" || !payload.campusId) return null; // pre-campus tokens → sign in again
+    return { sub: payload.sub, role: payload.role, name: String(payload.name ?? ""), campusId: payload.campusId };
   } catch {
     return null;
   }

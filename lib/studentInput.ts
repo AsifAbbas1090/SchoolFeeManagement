@@ -1,6 +1,7 @@
 // Validation for student create/edit payloads. Pure — safe to import on client or server.
 
 import { startOfDay } from "@/lib/time";
+import { parseRupees } from "@/lib/money";
 
 export type StudentInput = {
   name: string;
@@ -14,19 +15,11 @@ export type StudentInput = {
 
 export type StudentFieldErrors = Partial<Record<keyof StudentInput, string>>;
 
-const MAX_FEE = 10_000_000;
 export const MAX_CLASS_LENGTH = 50;
 
 // Free text, but trimmed with inner whitespace collapsed so "Class  5" and "Class 5" group together.
 export function normalizeClassName(v: unknown): string {
   return typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
-}
-
-function parseRupees(v: unknown): number | null | "invalid" {
-  if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, "").trim());
-  if (!Number.isInteger(n) || n < 0 || n > MAX_FEE) return "invalid";
-  return n;
 }
 
 export function parseStudentInput(

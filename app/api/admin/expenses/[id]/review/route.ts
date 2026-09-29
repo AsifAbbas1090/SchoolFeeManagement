@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Atomic: only a still-PENDING expense can be reviewed, so a double-click can't review twice.
   const { count } = await prisma.expense.updateMany({
-    where: { id: params.id, status: "PENDING" },
+    where: { id: params.id, campusId: auth.session.campusId, status: "PENDING" },
     data: {
       status: decision === "APPROVE" ? "APPROVED" : "REJECTED",
       reviewedAt: new Date(),
@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     },
   });
   if (count === 0) {
-    const exists = await prisma.expense.findUnique({ where: { id: params.id }, select: { status: true } });
+    const exists = await prisma.expense.findFirst({ where: { id: params.id, campusId: auth.session.campusId }, select: { status: true } });
     return exists
       ? NextResponse.json({ error: "This expense has already been reviewed." }, { status: 409 })
       : NextResponse.json({ error: "Expense not found." }, { status: 404 });

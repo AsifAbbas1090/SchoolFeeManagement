@@ -19,6 +19,13 @@ as_app "git log --format='    %h %an: %s' -1"
 echo "==> Installing dependencies (exact lockfile versions)"
 as_app "npm ci --no-audit --no-fund --loglevel=error"
 
+echo "==> Backup before migrating (dated dump on this server + fresh Supabase copy)"
+if systemctl list-unit-files db-backup.service >/dev/null 2>&1; then
+  systemctl start db-backup.service && install -m 600 /var/backups/school-fee/latest.dump "/var/backups/school-fee/pre-deploy-$(date -u +%Y%m%d-%H%M%S).dump"
+  find /var/backups/school-fee -name 'pre-deploy-*.dump' -mtime +30 -delete
+  echo "    backup ok"
+fi
+
 echo "==> Database migrations"
 as_app "npx prisma generate >/dev/null && npx prisma migrate deploy"
 

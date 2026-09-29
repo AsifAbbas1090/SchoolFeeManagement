@@ -1,13 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getStudentDetail } from "@/lib/students";
-import { formatDate, formatDateTime, formatMonth, formatRs } from "@/lib/format";
+import { feeTypeLabel, formatDate, formatDateTime, formatRs } from "@/lib/format";
 import { PageHeader, StatCard } from "@/components/ui";
 import StudentAdminActions from "@/components/StudentAdminActions";
 
 // Shared by /admin/students/[id] and /manager/students/[id]. Admin gets Edit / Mark as Left.
-export default async function StudentDetail({ id, basePath, isAdmin, justAdded = false }: { id: string; basePath: string; isAdmin: boolean; justAdded?: boolean }) {
-  const detail = await getStudentDetail(id);
+export default async function StudentDetail({
+  campusId,
+  id,
+  basePath,
+  isAdmin,
+  justAdded = false,
+}: {
+  campusId: string;
+  id: string;
+  basePath: string;
+  isAdmin: boolean;
+  justAdded?: boolean;
+}) {
+  const detail = await getStudentDetail(campusId, id); // another campus's student → 404
   if (!detail) notFound();
   const { student: s, balance } = detail;
   const left = s.status === "LEFT";
@@ -18,6 +30,7 @@ export default async function StudentDetail({ id, basePath, isAdmin, justAdded =
     ["Phone", s.phoneNumber],
     ["Monthly fee", formatRs(s.monthlyFee)],
     ["Admission fee", s.admissionFee === null ? <span className="text-muted">None</span> : formatRs(s.admissionFee)],
+    ["Paper Fund", <span key="pf" className="text-muted">Set monthly by Admin</span>],
     ["Admission date", s.admissionDate ? formatDate(s.admissionDate) : <span className="text-muted">Not set (using {formatDate(s.createdAt)})</span>],
     ["Status", left ? `Left${s.leftAt ? ` on ${formatDate(s.leftAt)}` : ""}` : "Active"],
     ["Added by", s.createdBy.name],
@@ -42,7 +55,7 @@ export default async function StudentDetail({ id, basePath, isAdmin, justAdded =
 
       {left && (
         <p className="mb-4 rounded-md border border-border bg-foreground/5 px-3 py-2 text-sm ">
-          This student has left. Their record and payment history are kept; monthly fees stopped accruing after {formatDate(s.leftAt)}.
+          This student has left. Their record and payment history are kept; monthly fees and Paper Fund stopped accruing after {formatDate(s.leftAt)}.
         </p>
       )}
 
@@ -57,15 +70,22 @@ export default async function StudentDetail({ id, basePath, isAdmin, justAdded =
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
-          label="Total owed so far"
-          value={formatRs(balance.owed)}
-          hint={`${formatRs(s.admissionFee ?? 0)} admission + ${formatRs(s.monthlyFee)} × ${balance.months} month${balance.months === 1 ? "" : "s"}`}
+          label={balance.tuition.due < 0 ? "Tuition paid in advance" : "Tuition due"}
+          value={formatRs(Math.abs(balance.tuition.due))}
+          tone={balance.tuition.due > 0 ? "warn" : "default"}
+          hint={`Owed ${formatRs(balance.tuition.owed)} (${formatRs(s.admissionFee ?? 0)} admission + ${formatRs(s.monthlyFee)} × ${balance.months} mo) · paid ${formatRs(balance.tuition.paid)}`}
         />
-        <StatCard label="Total paid" value={formatRs(balance.paid)} hint={`${s.feePayments.length} payment${s.feePayments.length === 1 ? "" : "s"}`} />
         <StatCard
-          label={balance.due < 0 ? "Paid in advance" : "Balance due"}
+          label={balance.paperFund.due < 0 ? "Paper Fund paid in advance" : "PF due"}
+          value={formatRs(Math.abs(balance.paperFund.due))}
+          tone={balance.paperFund.due > 0 ? "warn" : "default"}
+          hint={`Owed ${formatRs(balance.paperFund.owed)} · paid ${formatRs(balance.paperFund.paid)}${balance.paperFund.monthsNotSet > 0 ? ` · ${balance.paperFund.monthsNotSet} month${balance.paperFund.monthsNotSet === 1 ? "" : "s"} not set yet` : ""}`}
+        />
+        <StatCard
+          label={balance.due < 0 ? "Total paid in advance" : "Total due"}
           value={formatRs(Math.abs(balance.due))}
-          hint={balance.due === 0 ? "Fully paid up" : balance.due < 0 ? "Credit toward coming months" : "Owed − paid"}
+          tone={balance.due > 0 ? "warn" : "accent"}
+          hint={balance.due === 0 ? "Fully paid up" : `${s.feePayments.length} payment${s.feePayments.length === 1 ? "" : "s"} · ${formatRs(balance.paid)} paid in total`}
         />
       </div>
 
@@ -87,7 +107,7 @@ export default async function StudentDetail({ id, basePath, isAdmin, justAdded =
                 <td className="whitespace-nowrap px-4 py-3">{formatDateTime(p.paymentDate)}</td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums">{formatRs(p.amount)}</td>
                 <td className="px-4 py-3">
-                  {p.feeType === "ADMISSION" ? "Admission" : `Monthly · ${formatMonth(p.forMonth)}`}
+                  {feeTypeLabel(p.feeType, p.forMonth)}
                 </td>
                 <td className="px-4 py-3">{p.collectedBy.name}</td>
                 <td className="px-4 py-3 text-muted">{p.notes ?? "—"}</td>

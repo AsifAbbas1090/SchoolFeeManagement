@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatRs } from "@/lib/format";
 import { inputClass, primaryButtonClass } from "@/components/ui";
+import MoneyInput from "@/components/MoneyInput";
 
 export default function SubmitForm({ inHand }: { inHand: number }) {
   const router = useRouter();
@@ -53,10 +54,8 @@ export default function SubmitForm({ inHand }: { inHand: number }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <label htmlFor="amount" className="text-sm font-medium">Amount handed over (Rs)</label>
-          <input
+          <MoneyInput
             id="amount"
-            inputMode="numeric"
-            autoComplete="off"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={inHand > 0 ? String(inHand) : "0"}

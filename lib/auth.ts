@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ export async function signIn(username: string, password: string): Promise<SignIn
     return { ok: false, error: "This account has been deactivated. Contact the Admin." };
   }
 
-  const payload: SessionPayload = { sub: user.id, role: user.role, name: user.name };
+  const payload: SessionPayload = { sub: user.id, role: user.role, name: user.name, campusId: user.campusId };
   return { ok: true, token: await signSession(payload), user: payload };
 }
 
@@ -34,11 +35,27 @@ export async function getSession(): Promise<SessionPayload | null> {
   return verifySession(cookies().get(SESSION_COOKIE)?.value);
 }
 
-// Server-side guard for layouts/pages (second layer behind middleware.ts).
-// Redirects to /login when signed out, or to the user's own area on a role mismatch.
-export async function requireRole(role: SessionPayload["role"]): Promise<SessionPayload> {
+// The signed-in user as the database sees them NOW (not just what the cookie says).
+// A valid cookie is not enough: a deactivated user, or one moved to another campus, is rejected
+// immediately instead of when their 12-hour cookie expires. Cached per request.
+export type Actor = SessionPayload & { campusName: string };
+
+export const getActor = cache(async (): Promise<Actor | null> => {
   const session = await getSession();
-  if (!session) redirect("/login");
-  if (session.role !== role) redirect(homePathFor(session.role));
-  return session;
+  if (!session) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: { isActive: true, role: true, name: true, campusId: true, campus: { select: { name: true } } },
+  });
+  if (!user || !user.isActive || user.role !== session.role || user.campusId !== session.campusId) return null;
+  return { ...session, name: user.name, campusName: user.campus.name };
+});
+
+// Server-side guard for layouts/pages (second layer behind middleware.ts).
+// Redirects to /login when signed out/deactivated, or to the user's own area on a role mismatch.
+export async function requireRole(role: SessionPayload["role"]): Promise<Actor> {
+  const actor = await getActor();
+  if (!actor) redirect("/login");
+  if (actor.role !== role) redirect(homePathFor(actor.role));
+  return actor;
 }
